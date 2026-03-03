@@ -4,12 +4,12 @@ export const USDC_DECIMALS = 6;
 
 // Deployed Agora402 contract addresses
 export const ESCROW_ADDRESSES: Record<number, Address> = {
-  // 8453: "0x..." — filled after Base mainnet deploy
+  8453: "0xDcA5E5Dd1E969A4b824adDE41569a5d80A965aDe", // Base mainnet
   84532: "0x9Ea8c817bFDfb15FA50a30b08A186Cb213F11BCC", // Base Sepolia
 };
 
 export const REPUTATION_ADDRESSES: Record<number, Address> = {
-  // 8453: "0x..." — filled after Base mainnet deploy
+  8453: "0x9Ea8c817bFDfb15FA50a30b08A186Cb213F11BCC", // Base mainnet
   84532: "0x2A216a829574e88dD632e7C95660d43bCE627CDf", // Base Sepolia
 };
 

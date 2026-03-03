@@ -16,12 +16,12 @@ export const SUPPORTED_CHAINS = [base, baseSepolia] as const;
 // override these if set (e.g. for custom deployments).
 
 export const ESCROW_ADDRESSES: Record<number, Address> = {
-  // [base.id]: "0x..." — filled after mainnet deploy
+  [base.id]: "0xDcA5E5Dd1E969A4b824adDE41569a5d80A965aDe",
   [baseSepolia.id]: "0x9Ea8c817bFDfb15FA50a30b08A186Cb213F11BCC",
 };
 
 export const REPUTATION_ADDRESSES: Record<number, Address> = {
-  // [base.id]: "0x..." — filled after mainnet deploy
+  [base.id]: "0x9Ea8c817bFDfb15FA50a30b08A186Cb213F11BCC",
   [baseSepolia.id]: "0x2A216a829574e88dD632e7C95660d43bCE627CDf",
 };
 
