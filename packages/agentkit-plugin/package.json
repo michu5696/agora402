@@ -1,0 +1,51 @@
+{
+  "name": "agora402-agentkit",
+  "version": "0.1.0",
+  "description": "Agora402 escrow protection plugin for Coinbase AgentKit. Adds escrow, trust scores, and dispute resolution to any AgentKit agent.",
+  "keywords": [
+    "agentkit",
+    "coinbase",
+    "escrow",
+    "x402",
+    "agent",
+    "ai-agent",
+    "usdc",
+    "base",
+    "trust",
+    "mcp"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/michu5696/agora402"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "tsc"
+  },
+  "dependencies": {
+    "viem": "^2.46.3",
+    "zod": "^3.24.0"
+  },
+  "peerDependencies": {
+    "@coinbase/agentkit": ">=0.10.0"
+  },
+  "devDependencies": {
+    "@agora402/core": "workspace:*",
+    "@coinbase/agentkit": "^0.10.4",
+    "@types/node": "^25.3.3",
+    "reflect-metadata": "^0.2.2",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
