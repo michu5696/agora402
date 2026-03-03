@@ -367,6 +367,69 @@ export function startTrustServer(config: TrustServerConfig) {
         return;
       }
 
+      // ── .well-known/agent.json & agent-card.json (A2A discovery) ──
+      if (req.method === "GET" && (url.pathname === "/.well-known/agent.json" || url.pathname === "/.well-known/agent-card.json")) {
+        json(res, 200, {
+          name: "Agora402",
+          description: "Agent-to-agent trust scoring on Base. Composite 0-100 scores from 4 on-chain sources: escrow reputation, ERC-8004 identity, Moltbook social karma, and Base chain activity.",
+          version: "1.0.0",
+          url: `${url.origin}/`,
+          protocolVersion: "0.3.0",
+          provider: {
+            organization: "Agora402",
+            url: `${url.origin}`,
+          },
+          documentationUrl: `${url.origin}/llms.txt`,
+          capabilities: {
+            streaming: true,
+            pushNotifications: false,
+            stateTransitionHistory: false,
+            extensions: [
+              {
+                uri: "https://x402.org/protocol",
+                description: "x402 micropayment protocol. Trust score queries cost $0.001 USDC on Base via ERC-3009.",
+                required: true,
+                params: {
+                  network,
+                  asset: usdcAddress,
+                  assetName: "USDC",
+                  pricePerQuery: price,
+                  priceHuman: `$${Number(price) / 1e6} USDC`,
+                  facilitatorUrl,
+                  paymentScheme: "exact",
+                },
+              },
+            ],
+          },
+          securitySchemes: {
+            x402: {
+              type: "http",
+              scheme: "X-PAYMENT",
+              description: "x402 payment header. Base64-encoded ERC-3009 authorization payload.",
+            },
+          },
+          security: [{ x402: [] }],
+          defaultInputModes: ["text"],
+          defaultOutputModes: ["application/json"],
+          skills: [
+            {
+              id: "trust_score_query",
+              name: "Trust Score Query",
+              description: "Look up the composite trust score of an Ethereum address. Aggregates 4 on-chain sources: Agora402 escrow reputation, ERC-8004 agent identity, Moltbook social karma, and Base chain activity. Score 0-100 with confidence and per-source breakdown.",
+              tags: ["trust", "reputation", "agent", "escrow", "erc-8004", "moltbook", "base", "on-chain"],
+              examples: [
+                "What is the trust score for 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045?",
+                "Check if this agent address is trustworthy before transacting",
+              ],
+              inputModes: ["text"],
+              outputModes: ["application/json"],
+            },
+          ],
+          supportsAuthenticatedExtendedCard: false,
+        });
+        return;
+      }
+
       // ── .well-known/mcp/server-card.json (Smithery / MCP discovery) ──
       if (req.method === "GET" && url.pathname === "/.well-known/mcp/server-card.json") {
         json(res, 200, {
