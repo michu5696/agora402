@@ -1,6 +1,7 @@
 {
   "name": "agora402",
   "private": true,
+  "packageManager": "pnpm@10.30.3",
   "description": "The trust layer for agent-to-agent commerce. PayPal for autonomous agents.",
   "scripts": {
     "build": "turbo build",
