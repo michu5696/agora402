@@ -10,6 +10,7 @@ export default defineConfig({
   noExternal: [
     "@agora402/core",
     "@agora402/escrow-client",
+    "@agora402/trust",
     "@agora402/verification",
   ],
   // Keep npm-published deps as external (users install them)

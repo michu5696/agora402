@@ -51,6 +51,7 @@
   "devDependencies": {
     "@agora402/core": "workspace:*",
     "@agora402/escrow-client": "workspace:*",
+    "@agora402/trust": "workspace:*",
     "@agora402/verification": "workspace:*",
     "@types/node": "^25.3.3",
     "tsup": "^8.5.1",

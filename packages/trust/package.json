@@ -11,9 +11,11 @@
   },
   "dependencies": {
     "@agora402/core": "workspace:*",
-    "@agora402/db": "workspace:*"
+    "@agora402/db": "workspace:*",
+    "viem": "^2.46.3"
   },
   "devDependencies": {
+    "@types/node": "^25.3.3",
     "typescript": "^5.7.0"
   }
 }

@@ -12,6 +12,7 @@ import {
   getChainName,
   getReputationAddress,
 } from "../config.js";
+import { computeTrustScore } from "@agora402/trust";
 
 const publicClient = createPublicClient({
   chain: getChain(),
@@ -65,9 +66,59 @@ async function queryOnChainReputation(
 }
 
 export function registerTrustTools(server: McpServer): void {
+  // ── Composite trust score (multi-source) ──
   server.tool(
     "trust_score_query",
-    "Look up the on-chain trust score of an agent address before transacting. Queries the Agora402 Reputation contract on Base. Score is 0-100 based on escrow history.",
+    "Look up the composite trust score of an agent address. Aggregates 4 sources: Agora402 escrow reputation, ERC-8004 agent identity, Moltbook social karma, and Base chain activity. Score is 0-100 with confidence level.",
+    {
+      address: z
+        .string()
+        .describe("Ethereum address of the agent to look up"),
+    },
+    async ({ address }) => {
+      try {
+        const chainName = getChainName();
+        const trustScore = await computeTrustScore(address as Address, {
+          chain: chainName as "base" | "base-sepolia",
+          rpcUrl: getRpcUrl(),
+          reputationAddress: getReputationAddress(),
+          basescanApiKey: process.env.BASESCAN_API_KEY,
+          moltbookAppKey: process.env.MOLTBOOK_APP_KEY,
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(trustScore, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                address,
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to compute trust score",
+                fallback:
+                  "Trust scoring temporarily unavailable. Consider using small escrow amounts as a precaution.",
+              }),
+            },
+          ],
+        };
+      }
+    }
+  );
+
+  // ── Quick on-chain-only reputation check (free, no API keys needed) ──
+  server.tool(
+    "trust_onchain_quick",
+    "Quick on-chain reputation check using only the Agora402 Reputation contract. Free, no API keys needed. Use trust_score_query for the full composite score.",
     {
       address: z
         .string()
@@ -86,7 +137,6 @@ export function registerTrustTools(server: McpServer): void {
           reputation.totalDisputed +
           reputation.totalRefunded;
 
-        // Unknown agent — no on-chain history
         if (totalEscrows === 0) {
           return {
             content: [
@@ -96,10 +146,10 @@ export function registerTrustTools(server: McpServer): void {
                   {
                     address,
                     score: 50,
-                    source: "on-chain",
+                    source: "agora402-onchain",
                     message:
                       "No on-chain escrow history found. This is a new/unknown agent — proceed with caution and use small escrow amounts.",
-                    recommendation: "low_trust",
+                    recommendation: "unknown",
                     contract: reputationAddress,
                     chain: getChainName(),
                   },
@@ -129,7 +179,7 @@ export function registerTrustTools(server: McpServer): void {
                 {
                   address,
                   score,
-                  source: "on-chain",
+                  source: "agora402-onchain",
                   totalEscrows,
                   successfulEscrows: reputation.totalCompleted,
                   disputedEscrows: reputation.totalDisputed,

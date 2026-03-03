@@ -1,0 +1,6 @@
+node_modules
+.git
+contracts
+specs
+*.md
+packages/agentkit-plugin

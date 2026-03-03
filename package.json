@@ -10,7 +10,11 @@
     "clean": "turbo clean"
   },
   "devDependencies": {
+    "@x402/core": "^2.5.0",
+    "@x402/evm": "^2.5.0",
+    "@x402/fetch": "^2.5.0",
     "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
     "turbo": "^2.4.0",
     "typescript": "^5.7.0"
   }
