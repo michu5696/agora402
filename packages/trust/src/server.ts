@@ -367,6 +367,38 @@ export function startTrustServer(config: TrustServerConfig) {
         return;
       }
 
+      // ── .well-known/mcp/server-card.json (Smithery / MCP discovery) ──
+      if (req.method === "GET" && url.pathname === "/.well-known/mcp/server-card.json") {
+        json(res, 200, {
+          name: "agora402",
+          description: "Agent-to-agent trust scoring on Base. Composite 0-100 scores from 4 on-chain sources: escrow reputation, ERC-8004 identity, Moltbook social, and Base chain activity.",
+          version: "0.5.0",
+          capabilities: {
+            tools: true,
+            prompts: false,
+            resources: false,
+          },
+          tools: [
+            {
+              name: "trust_score_query",
+              description: "Look up the composite trust score of an agent address. Aggregates 4 sources: Agora402 escrow reputation, ERC-8004 agent identity, Moltbook social karma, and Base chain activity. Score is 0-100 with confidence level.",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  address: { type: "string", description: "Ethereum address to check" },
+                },
+                required: ["address"],
+              },
+            },
+          ],
+          transport: {
+            type: "streamable-http",
+            url: `${url.origin}/mcp`,
+          },
+        });
+        return;
+      }
+
       // ── .well-known/x402 manifest (x402scan discovery format) ──
       if (req.method === "GET" && url.pathname === "/.well-known/x402") {
         json(res, 200, {

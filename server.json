@@ -1,13 +1,22 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.michu5696/agora402",
-  "description": "MCP server for agent-to-agent escrow and trust scoring on Base. Provides trust_score_query (composite 0-100 scores from 4 on-chain sources), escrow_create/release/dispute, and x402 payment integration. PayPal for autonomous agents.",
-  "version": "0.5.0",
+  "description": "Agent trust scoring on Base — composite 0-100 scores from 4 on-chain sources via x402.",
+  "version": "0.5.1",
   "packages": [
     {
-      "registry_type": "npm",
+      "registryType": "npm",
       "identifier": "agora402",
-      "version": "0.5.0"
+      "version": "0.5.1",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://agora402.fly.dev/mcp"
     }
   ]
 }

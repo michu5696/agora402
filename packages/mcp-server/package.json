@@ -1,6 +1,7 @@
 {
   "name": "agora402",
-  "version": "0.5.0",
+  "version": "0.5.1",
+  "mcpName": "io.github.michu5696/agora402",
   "description": "MCP server for agent-to-agent escrow protection on x402. PayPal for autonomous agents.",
   "keywords": [
     "mcp",
