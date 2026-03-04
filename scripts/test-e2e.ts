@@ -16,7 +16,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
 
-const TRUST_API = "https://agora402.fly.dev";
+const TRUST_API = "https://paycrow.fly.dev";
 const TARGET_ADDRESS =
   process.argv[2] ?? "0x0326c9fa34e2270d3ec2befe497085c232dd536b";
 

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { formatUsdc, parseUsdc } from "@agora402/core";
+import { formatUsdc, parseUsdc } from "@paycrow/core";
 import type { Address } from "viem";
 import { keccak256, toBytes } from "viem";
 import { getEscrowClient } from "../config.js";

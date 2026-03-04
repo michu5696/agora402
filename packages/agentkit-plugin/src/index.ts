@@ -1,8 +1,8 @@
 export {
-  Agora402ActionProvider,
-  agora402ActionProvider,
-  type Agora402Config,
-} from "./agora402ActionProvider.js";
+  PayCrowActionProvider,
+  paycrowActionProvider,
+  type PayCrowConfig,
+} from "./paycrowActionProvider.js";
 export {
   CreateEscrowSchema,
   ReleaseEscrowSchema,

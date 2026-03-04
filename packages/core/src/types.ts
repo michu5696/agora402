@@ -94,7 +94,7 @@ export interface ReputationScore {
 
 // ── Protocol fee types ──────────────────────────────────────────────
 
-/** Constructor / deployment parameters for the Agora402Escrow contract. */
+/** Constructor / deployment parameters for the PayCrowEscrow contract. */
 export interface DeployParams {
   usdc: Address;
   arbiter: Address;

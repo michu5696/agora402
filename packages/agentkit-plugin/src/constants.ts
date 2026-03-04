@@ -2,7 +2,7 @@ import type { Address } from "viem";
 
 export const USDC_DECIMALS = 6;
 
-// Deployed Agora402 contract addresses
+// Deployed PayCrow contract addresses
 export const ESCROW_ADDRESSES: Record<number, Address> = {
   8453: "0xDcA5E5Dd1E969A4b824adDE41569a5d80A965aDe", // Base mainnet
   84532: "0x9Ea8c817bFDfb15FA50a30b08A186Cb213F11BCC", // Base Sepolia

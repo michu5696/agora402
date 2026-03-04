@@ -1,24 +1,24 @@
-# agora402-agentkit
+# paycrow-agentkit
 
 Escrow protection plugin for [Coinbase AgentKit](https://github.com/coinbase/agentkit). Adds on-chain USDC escrow, trust scores, and dispute resolution to any AgentKit agent.
 
 ## Install
 
 ```bash
-npm install agora402-agentkit @coinbase/agentkit
+npm install paycrow-agentkit @coinbase/agentkit
 ```
 
 ## Usage
 
 ```typescript
 import { AgentKit } from "@coinbase/agentkit";
-import { agora402ActionProvider } from "agora402-agentkit";
+import { paycrowActionProvider } from "paycrow-agentkit";
 
 const agentkit = await AgentKit.from({
   walletProvider,
   actionProviders: [
     // ... your other providers
-    agora402ActionProvider(),
+    paycrowActionProvider(),
   ],
 });
 ```
@@ -39,7 +39,7 @@ That's it. Your agent now has 6 new actions:
 AgentKit's built-in x402 provider handles direct payments — but payments are final, with no recourse. This plugin adds the missing protection layer:
 
 ```
-Agent → agora402 plugin → Escrow Contract (Base L2)
+Agent → paycrow plugin → Escrow Contract (Base L2)
               │                      │
         Verify response        USDC held until
         (JSON Schema)          delivery confirmed
@@ -59,7 +59,7 @@ Supports Base Sepolia (default) and Base mainnet. The plugin auto-detects the ne
 ## Custom contract addresses
 
 ```typescript
-agora402ActionProvider({
+paycrowActionProvider({
   escrowAddress: "0x...",
   reputationAddress: "0x...",
   usdcAddress: "0x...",

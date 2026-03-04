@@ -5,14 +5,14 @@ import {
   agora402ReputationAbi,
   formatUsdc,
   type OnChainReputation,
-} from "@agora402/core";
+} from "@paycrow/core";
 import {
   getChain,
   getRpcUrl,
   getChainName,
   getReputationAddress,
 } from "../config.js";
-import { computeTrustScore } from "@agora402/trust";
+import { computeTrustScore } from "@paycrow/trust";
 
 const publicClient = createPublicClient({
   chain: getChain(),
@@ -69,7 +69,7 @@ export function registerTrustTools(server: McpServer): void {
   // ── Composite trust score (multi-source) ──
   server.tool(
     "trust_score_query",
-    "Look up the composite trust score of an agent address. Aggregates 4 sources: Agora402 escrow reputation, ERC-8004 agent identity, Moltbook social karma, and Base chain activity. Score is 0-100 with confidence level.",
+    "Look up the composite trust score of an agent address. Aggregates 4 sources: PayCrow escrow reputation, ERC-8004 agent identity, Moltbook social karma, and Base chain activity. Score is 0-100 with confidence level.",
     {
       address: z
         .string()
@@ -118,7 +118,7 @@ export function registerTrustTools(server: McpServer): void {
   // ── Quick on-chain-only reputation check (free, no API keys needed) ──
   server.tool(
     "trust_onchain_quick",
-    "Quick on-chain reputation check using only the Agora402 Reputation contract. Free, no API keys needed. Use trust_score_query for the full composite score.",
+    "Quick on-chain reputation check using only the PayCrow Reputation contract. Free, no API keys needed. Use trust_score_query for the full composite score.",
     {
       address: z
         .string()
@@ -146,7 +146,7 @@ export function registerTrustTools(server: McpServer): void {
                   {
                     address,
                     score: 50,
-                    source: "agora402-onchain",
+                    source: "paycrow-onchain",
                     message:
                       "No on-chain escrow history found. This is a new/unknown agent — proceed with caution and use small escrow amounts.",
                     recommendation: "unknown",
@@ -179,7 +179,7 @@ export function registerTrustTools(server: McpServer): void {
                 {
                   address,
                   score,
-                  source: "agora402-onchain",
+                  source: "paycrow-onchain",
                   totalEscrows,
                   successfulEscrows: reputation.totalCompleted,
                   disputedEscrows: reputation.totalDisputed,

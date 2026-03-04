@@ -1,8 +1,8 @@
 {
-  "name": "agora402",
+  "name": "paycrow",
   "private": true,
   "packageManager": "pnpm@10.30.3",
-  "description": "The trust layer for agent-to-agent commerce. PayPal for autonomous agents.",
+  "description": "Escrow protection for autonomous agent payments. PayPal for AI agents.",
   "scripts": {
     "build": "turbo build",
     "test": "turbo test",

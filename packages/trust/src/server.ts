@@ -1,8 +1,9 @@
 /**
- * x402-Gated Trust Score API Server
+ * PayCrow — Escrow Protection for Autonomous Agent Payments
  *
- * Serves trust scores behind an x402 paywall so autonomous agents
- * can discover and pay for trust checks without human intervention.
+ * PayPal for AI agents. USDC held in smart contract on Base until the
+ * job is done — no scams, no rugs. Includes trust scoring from 4 on-chain
+ * sources so agents can check counterparties before transacting.
  *
  * Endpoints:
  *   GET /trust/:address           — Returns 402 with payment requirements
@@ -77,7 +78,7 @@ export function startTrustServer(config: TrustServerConfig) {
       x402Version: 2,
       resource: {
         url: resource,
-        description: "Composite agent trust score from 4 on-chain sources (Agora402 Reputation, ERC-8004, Moltbook, Base chain activity). Returns score 0-100 with confidence level, recommendation, and per-source breakdown.",
+        description: "Escrow-protected trust check. Vet an agent before sending funds to escrow. Returns 0-100 score from 4 on-chain sources with confidence level, recommendation, and per-source breakdown.",
         mimeType: "application/json",
       },
       accepts: [
@@ -106,7 +107,7 @@ export function startTrustServer(config: TrustServerConfig) {
                 confidence: "high",
                 confidencePercent: 83,
                 recommendation: "high_trust",
-                sourcesUsed: ["agora402", "erc8004", "base-chain"],
+                sourcesUsed: ["paycrow", "erc8004", "base-chain"],
               },
             },
           },
@@ -240,11 +241,11 @@ export function startTrustServer(config: TrustServerConfig) {
   const mcpTransports = new Map<string, StreamableHTTPServerTransport>();
 
   function createMcpServer(): McpServer {
-    const mcp = new McpServer({ name: "agora402", version: "0.5.0" });
+    const mcp = new McpServer({ name: "paycrow", version: "1.0.0" });
 
     mcp.tool(
       "trust_score_query",
-      "Look up the composite trust score of an agent address. Aggregates 4 sources: Agora402 escrow reputation, ERC-8004 agent identity, Moltbook social karma, and Base chain activity. Score is 0-100 with confidence level.",
+      "Check if an agent is safe to transact with before sending funds to escrow. Scores 0-100 from 4 on-chain sources: escrow history, ERC-8004 identity, Moltbook karma, and Base chain activity. Part of PayCrow's payment protection layer.",
       { address: z.string().describe("Ethereum address to check") },
       async ({ address: addr }) => {
         const score = await computeTrustScore(addr as Address, {
@@ -341,12 +342,12 @@ export function startTrustServer(config: TrustServerConfig) {
       // ── Health check ──
       if (req.method === "GET" && url.pathname === "/health") {
         json(res, 200, {
-          name: "agora402-trust-api",
+          name: "paycrow",
           version: "1.0.0",
-          description: "x402-gated agent trust scoring API. Pay $0.001 USDC per query.",
+          description: "Escrow protection for autonomous agent payments. USDC held in smart contract on Base until the job is done. Includes trust scoring from 4 on-chain sources.",
           chain: chainName,
           price: `$${Number(price) / 1e6} USDC`,
-          sources: ["agora402-reputation", "erc-8004", "moltbook", "base-chain-activity"],
+          sources: ["paycrow-reputation", "erc-8004", "moltbook", "base-chain-activity"],
         });
         return;
       }
@@ -370,13 +371,13 @@ export function startTrustServer(config: TrustServerConfig) {
       // ── .well-known/agent.json & agent-card.json (A2A discovery) ──
       if (req.method === "GET" && (url.pathname === "/.well-known/agent.json" || url.pathname === "/.well-known/agent-card.json")) {
         json(res, 200, {
-          name: "Agora402",
-          description: "Agent-to-agent trust scoring on Base. Composite 0-100 scores from 4 on-chain sources: escrow reputation, ERC-8004 identity, Moltbook social karma, and Base chain activity.",
+          name: "PayCrow",
+          description: "Escrow protection for autonomous agent payments on Base. USDC held in smart contract until the job is done — no scams, no rugs. Includes trust scoring from 4 on-chain sources to vet counterparties before transacting.",
           version: "1.0.0",
           url: `${url.origin}/`,
           protocolVersion: "0.3.0",
           provider: {
-            organization: "Agora402",
+            organization: "PayCrow",
             url: `${url.origin}`,
           },
           documentationUrl: `${url.origin}/llms.txt`,
@@ -387,7 +388,7 @@ export function startTrustServer(config: TrustServerConfig) {
             extensions: [
               {
                 uri: "https://x402.org/protocol",
-                description: "x402 micropayment protocol. Trust score queries cost $0.001 USDC on Base via ERC-3009.",
+                description: "x402 payment protocol. Escrow-protected queries cost $0.001 USDC on Base via ERC-3009.",
                 required: true,
                 params: {
                   network,
@@ -415,11 +416,11 @@ export function startTrustServer(config: TrustServerConfig) {
             {
               id: "trust_score_query",
               name: "Trust Score Query",
-              description: "Look up the composite trust score of an Ethereum address. Aggregates 4 on-chain sources: Agora402 escrow reputation, ERC-8004 agent identity, Moltbook social karma, and Base chain activity. Score 0-100 with confidence and per-source breakdown.",
-              tags: ["trust", "reputation", "agent", "escrow", "erc-8004", "moltbook", "base", "on-chain"],
+              description: "Check if an agent is safe to transact with before sending funds to escrow. Scores 0-100 from 4 on-chain sources: escrow history, ERC-8004 identity, Moltbook karma, and Base chain activity.",
+              tags: ["escrow", "trust", "reputation", "agent", "payment-protection", "erc-8004", "moltbook", "base"],
               examples: [
-                "What is the trust score for 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045?",
-                "Check if this agent address is trustworthy before transacting",
+                "Is this agent safe to transact with? Check 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                "Vet this counterparty before I send funds to escrow",
               ],
               inputModes: ["text"],
               outputModes: ["application/json"],
@@ -433,9 +434,9 @@ export function startTrustServer(config: TrustServerConfig) {
       // ── .well-known/mcp/server-card.json (Smithery / MCP discovery) ──
       if (req.method === "GET" && url.pathname === "/.well-known/mcp/server-card.json") {
         json(res, 200, {
-          name: "agora402",
-          description: "Agent-to-agent trust scoring on Base. Composite 0-100 scores from 4 on-chain sources: escrow reputation, ERC-8004 identity, Moltbook social, and Base chain activity.",
-          version: "0.5.0",
+          name: "paycrow",
+          description: "Escrow protection for autonomous agent payments on Base. USDC held in smart contract until the job is done. Includes trust scoring from 4 on-chain sources.",
+          version: "1.0.0",
           capabilities: {
             tools: true,
             prompts: false,
@@ -444,7 +445,7 @@ export function startTrustServer(config: TrustServerConfig) {
           tools: [
             {
               name: "trust_score_query",
-              description: "Look up the composite trust score of an agent address. Aggregates 4 sources: Agora402 escrow reputation, ERC-8004 agent identity, Moltbook social karma, and Base chain activity. Score is 0-100 with confidence level.",
+              description: "Check if an agent is safe to transact with before sending funds to escrow. Scores 0-100 from 4 on-chain sources: escrow history, ERC-8004 identity, Moltbook karma, and Base chain activity.",
               inputSchema: {
                 type: "object",
                 properties: {
@@ -470,7 +471,7 @@ export function startTrustServer(config: TrustServerConfig) {
             `${url.origin}/trust/0x0000000000000000000000000000000000000001`,
           ],
           ownershipProofs: [config.payTo],
-          instructions: "Composite trust scores for autonomous agents. GET /trust/{address} to query. Price: $0.001 USDC on Base via x402.",
+          instructions: "Escrow-protected agent payments on Base. Check counterparty trust scores before transacting. GET /trust/{address} to query. Price: $0.001 USDC via x402.",
         });
         return;
       }
@@ -478,11 +479,12 @@ export function startTrustServer(config: TrustServerConfig) {
       // ── llms.txt (AI crawler discovery) ──
       if (req.method === "GET" && url.pathname === "/llms.txt") {
         res.writeHead(200, { "Content-Type": "text/plain", "Access-Control-Allow-Origin": "*" });
-        res.end(`# Agora402 Trust Score API
-# x402-gated agent trust scoring service
+        res.end(`# PayCrow — Escrow Protection for Agent Payments
+# PayPal for autonomous agents
 
-> Composite trust scores for Ethereum addresses on Base.
-> Aggregates Agora402 escrow reputation, ERC-8004 identity, Moltbook social, and Base chain activity.
+> Escrow protection for autonomous agent payments on Base.
+> USDC held in smart contract until the job is done — no scams, no rugs.
+> Check counterparty trust scores before transacting (4 on-chain sources).
 > Price: $${Number(price) / 1e6} USDC per query via x402 protocol.
 
 ## Endpoints
@@ -498,8 +500,8 @@ Amount: ${price} base units ($${Number(price) / 1e6})
 Facilitator: ${facilitatorUrl}
 
 ## MCP Server
-npm install -g agora402
-npx agora402
+npm install -g paycrow
+npx paycrow
 `);
         return;
       }
@@ -511,13 +513,13 @@ npx agora402
             {
               resource: `/trust/{address}`,
               method: "GET",
-              description: "Composite agent trust score aggregating 4 on-chain sources: Agora402 escrow reputation, ERC-8004 agent identity & feedback, Moltbook social karma, and Base chain activity. Returns score 0-100 with confidence level and per-source breakdown.",
+              description: "Check if an agent is safe to transact with before sending funds to escrow. Returns 0-100 trust score from 4 on-chain sources: escrow history, ERC-8004 identity, Moltbook karma, and Base chain activity. Part of PayCrow's escrow protection layer.",
               scheme: "exact",
               network,
               maxAmountRequired: price,
               asset: usdcAddress,
               mimeType: "application/json",
-              tags: ["trust", "reputation", "agent", "escrow", "erc-8004", "moltbook"],
+              tags: ["escrow", "payment-protection", "trust", "reputation", "agent", "erc-8004", "moltbook"],
               rateLimit: { requests: 100, period: "minute" },
               example: {
                 request: "GET /trust/0x1234...abcd",
@@ -525,7 +527,7 @@ npx agora402
                   score: 78,
                   confidence: "high",
                   recommendation: "high_trust",
-                  sourcesUsed: ["agora402", "erc8004", "base-chain"],
+                  sourcesUsed: ["paycrow", "erc8004", "base-chain"],
                 },
               },
             },
@@ -630,7 +632,7 @@ npx agora402
   });
 
   server.listen(port, () => {
-    console.log(`\nAgora402 Trust Score API running at http://localhost:${port}`);
+    console.log(`\nPayCrow — Escrow Protection for Agent Payments — http://localhost:${port}`);
     console.log(`  GET /trust/{address}        — Query trust score ($${Number(price) / 1e6} USDC per check)`);
     console.log(`  POST /mcp                    — MCP-over-HTTP (Streamable HTTP)`);
     console.log(`  GET /discovery/resources     — x402 Bazaar catalog`);

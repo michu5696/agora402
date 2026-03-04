@@ -1,5 +1,5 @@
 {
-  "name": "@agora402/trust",
+  "name": "@paycrow/trust",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@agora402/core": "workspace:*",
-    "@agora402/db": "workspace:*",
+    "@paycrow/core": "workspace:*",
+    "@paycrow/db": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "viem": "^2.46.3",
     "zod": "^3.25.76"

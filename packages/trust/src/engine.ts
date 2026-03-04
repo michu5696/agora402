@@ -5,7 +5,7 @@
  * into a single 0-100 score with full provenance.
  *
  * Sources and weights:
- *   1. Agora402 Reputation (35%) — our own escrow outcome history
+ *   1. PayCrow Reputation (35%) — our own escrow outcome history
  *   2. ERC-8004 Reputation  (25%) — cross-ecosystem agent identity + feedback
  *   3. Moltbook Social      (15%) — karma, account age, social standing
  *   4. Base Chain Activity   (15%) — wallet age, tx count, USDC volume
@@ -24,7 +24,7 @@ import { queryErc8004, type Erc8004Signal } from "./sources/erc8004.js";
 import { queryMoltbook, type MoltbookSignal } from "./sources/moltbook.js";
 import { queryBaseChain, type BaseChainSignal } from "./sources/base-chain.js";
 
-/** ABI for Agora402Reputation contract — only what we need */
+/** ABI for PayCrowReputation contract — only what we need */
 const reputationAbi = [
   {
     type: "function",
@@ -51,7 +51,7 @@ const reputationAbi = [
   },
 ] as const;
 
-export interface Agora402Signal {
+export interface PayCrowSignal {
   score: number;
   totalCompleted: number;
   totalDisputed: number;
@@ -78,7 +78,7 @@ export interface CompositeTrustScore {
     | "insufficient_data";
   /** Per-source breakdown */
   sources: {
-    agora402: Agora402Signal | null;
+    paycrow: PayCrowSignal | null;
     erc8004: Erc8004Signal | null;
     moltbook: MoltbookSignal | null;
     baseChain: BaseChainSignal | null;
@@ -95,7 +95,7 @@ export interface TrustEngineConfig {
   rpcUrl?: string;
   /** Chain: "base" or "base-sepolia" */
   chain?: "base" | "base-sepolia";
-  /** Agora402 Reputation contract address */
+  /** PayCrow Reputation contract address */
   reputationAddress?: Address;
   /** Moltbook API app key (optional, for higher rate limits) */
   moltbookAppKey?: string;
@@ -104,7 +104,7 @@ export interface TrustEngineConfig {
 }
 
 const WEIGHTS = {
-  agora402: 0.35,
+  paycrow: 0.35,
   erc8004: 0.25,
   moltbook: 0.15,
   baseChain: 0.15,
@@ -112,7 +112,7 @@ const WEIGHTS = {
 };
 
 /** Sum of active weights (excluding reserved) */
-const ACTIVE_WEIGHT_SUM = WEIGHTS.agora402 + WEIGHTS.erc8004 + WEIGHTS.moltbook + WEIGHTS.baseChain;
+const ACTIVE_WEIGHT_SUM = WEIGHTS.paycrow + WEIGHTS.erc8004 + WEIGHTS.moltbook + WEIGHTS.baseChain;
 
 const DEFAULT_REPUTATION_ADDRESSES: Record<string, Address> = {
   base: "0x9Ea8c817bFDfb15FA50a30b08A186Cb213F11BCC",
@@ -131,14 +131,14 @@ export async function computeTrustScore(
   const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
 
   // Query all sources in parallel — each handles its own errors
-  const [agora402Result, erc8004Result, moltbookResult, baseChainResult] = await Promise.allSettled([
-    queryAgora402(address, reputationAddr, publicClient),
+  const [paycrowResult, erc8004Result, moltbookResult, baseChainResult] = await Promise.allSettled([
+    queryPayCrow(address, reputationAddr, publicClient),
     queryErc8004(address),
     queryMoltbook(address, config.moltbookAppKey),
     queryBaseChain(address, config.basescanApiKey),
   ]);
 
-  const agora402 = agora402Result.status === "fulfilled" ? agora402Result.value : null;
+  const paycrow = paycrowResult.status === "fulfilled" ? paycrowResult.value : null;
   const erc8004 = erc8004Result.status === "fulfilled" ? erc8004Result.value : null;
   const moltbook = moltbookResult.status === "fulfilled" ? moltbookResult.value : null;
   const baseChain = baseChainResult.status === "fulfilled" ? baseChainResult.value : null;
@@ -149,11 +149,11 @@ export async function computeTrustScore(
   let usedWeight = 0;
   const sourcesUsed: string[] = [];
 
-  // Agora402: meaningful if address has any escrow history (completed, disputed, or refunded > 0)
-  if (agora402 && (agora402.totalCompleted > 0 || agora402.totalDisputed > 0 || agora402.totalRefunded > 0)) {
-    weightedSum += agora402.score * WEIGHTS.agora402;
-    usedWeight += WEIGHTS.agora402;
-    sourcesUsed.push("agora402");
+  // PayCrow: meaningful if address has any escrow history (completed, disputed, or refunded > 0)
+  if (paycrow && (paycrow.totalCompleted > 0 || paycrow.totalDisputed > 0 || paycrow.totalRefunded > 0)) {
+    weightedSum += paycrow.score * WEIGHTS.paycrow;
+    usedWeight += WEIGHTS.paycrow;
+    sourcesUsed.push("paycrow");
   }
 
   // ERC-8004: meaningful if registered
@@ -198,7 +198,7 @@ export async function computeTrustScore(
   let recommendation: CompositeTrustScore["recommendation"];
   if (confidence === "none" || score === null) {
     recommendation = "insufficient_data";
-  } else if (agora402 && agora402.disputeRate > 0.2) {
+  } else if (paycrow && paycrow.disputeRate > 0.2) {
     // High dispute rate is an explicit red flag regardless of score
     recommendation = "caution";
   } else if (confidence === "low") {
@@ -219,19 +219,19 @@ export async function computeTrustScore(
     confidence,
     confidencePercent,
     recommendation,
-    sources: { agora402, erc8004, moltbook, baseChain },
+    sources: { paycrow, erc8004, moltbook, baseChain },
     sourcesUsed,
     timestamp: new Date().toISOString(),
     chain: chainName,
   };
 }
 
-async function queryAgora402(
+async function queryPayCrow(
   address: Address,
   reputationAddr: Address,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client: any
-): Promise<Agora402Signal | null> {
+): Promise<PayCrowSignal | null> {
   try {
     const [rawScore, repData] = await Promise.all([
       client.readContract({

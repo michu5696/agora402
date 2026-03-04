@@ -1,5 +1,5 @@
 import Ajv from "ajv";
-import type { VerificationResult } from "@agora402/core";
+import type { VerificationResult } from "@paycrow/core";
 import type { Verifier } from "../verify.js";
 
 const ajv = new Ajv({ allErrors: true });

@@ -1,7 +1,7 @@
 import { base, baseSepolia } from "viem/chains";
 import type { Chain, Hash, Address } from "viem";
-import { EscrowClient } from "@agora402/escrow-client";
-import { ESCROW_ADDRESSES, REPUTATION_ADDRESSES } from "@agora402/core";
+import { EscrowClient } from "@paycrow/escrow-client";
+import { ESCROW_ADDRESSES, REPUTATION_ADDRESSES } from "@paycrow/core";
 
 /**
  * Resolve which chain to use based on environment.
@@ -51,7 +51,7 @@ export function getEscrowClient(): EscrowClient {
   const privateKey = process.env.PRIVATE_KEY;
   if (!privateKey) {
     throw new Error(
-      "PRIVATE_KEY must be set. Run `npx agora402 init` to generate a wallet."
+      "PRIVATE_KEY must be set. Run `npx paycrow init` to generate a wallet."
     );
   }
 

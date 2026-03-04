@@ -1,5 +1,5 @@
 {
-  "name": "@agora402/x402-bridge",
+  "name": "@paycrow/x402-bridge",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@agora402/core": "workspace:*",
-    "@agora402/escrow-client": "workspace:*",
+    "@paycrow/core": "workspace:*",
+    "@paycrow/escrow-client": "workspace:*",
     "viem": "^2.23.0"
   },
   "devDependencies": {

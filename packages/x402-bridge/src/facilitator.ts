@@ -13,7 +13,7 @@ import {
 } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
-import { agora402RouterAbi } from "@agora402/core";
+import { agora402RouterAbi } from "@paycrow/core";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -65,10 +65,10 @@ export interface SupportedResponse {
   signers: string[];
 }
 
-export interface Agora402FacilitatorConfig {
+export interface PayCrowFacilitatorConfig {
   /** Private key of the facilitator (pays gas for settlement) */
   privateKey: Hash;
-  /** Address of the Agora402EscrowRouter contract */
+  /** Address of the PayCrowEscrowRouter contract */
   routerAddress: Address;
   /** RPC URL for the target chain */
   rpcUrl?: string;
@@ -93,16 +93,16 @@ const erc20BalanceAbi = [
 // ─── Facilitator ──────────────────────────────────────────────────────────
 
 /**
- * Agora402 x402 Facilitator.
+ * PayCrow x402 Facilitator.
  *
  * Drop-in replacement for the default x402.org facilitator.
  * Instead of settling payments directly to sellers, routes USDC through
- * the Agora402EscrowRouter for buyer protection.
+ * the PayCrowEscrowRouter for buyer protection.
  *
  * Resource servers point their facilitator URL here instead of x402.org.
  * Clients (buyers) sign the same EIP-3009 authorizations — zero changes needed.
  */
-export class Agora402Facilitator {
+export class PayCrowFacilitator {
   private readonly publicClient: PublicClient;
   private readonly walletClient: ReturnType<typeof createWalletClient<Transport, Chain, PrivateKeyAccount>>;
   private readonly routerAddress: Address;
@@ -110,7 +110,7 @@ export class Agora402Facilitator {
   private readonly defaultTimelockSeconds: number;
   private readonly signerAddress: Address;
 
-  constructor(config: Agora402FacilitatorConfig) {
+  constructor(config: PayCrowFacilitatorConfig) {
     const account = privateKeyToAccount(config.privateKey);
     this.chain = config.chain ?? baseSepolia;
     this.routerAddress = config.routerAddress;
@@ -197,7 +197,7 @@ export class Agora402Facilitator {
   }
 
   /**
-   * Settle a payment by routing through the Agora402EscrowRouter.
+   * Settle a payment by routing through the PayCrowEscrowRouter.
    *
    * Instead of direct transfer, this:
    * 1. Calls Router.settleToEscrow() which executes the EIP-3009 transfer

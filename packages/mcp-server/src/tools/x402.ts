@@ -1,11 +1,11 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { verify } from "@agora402/verification";
+import { verify } from "@paycrow/verification";
 import {
   formatUsdc,
   parseUsdc,
   type VerificationStrategy,
-} from "@agora402/core";
+} from "@paycrow/core";
 import type { Address } from "viem";
 import { keccak256, toBytes } from "viem";
 import { getEscrowClient } from "../config.js";
@@ -13,7 +13,7 @@ import { getEscrowClient } from "../config.js";
 export function registerX402Tools(server: McpServer): void {
   server.tool(
     "x402_protected_call",
-    `Make an HTTP API call with automatic escrow protection. This is the flagship Agora402 tool.
+    `Make an HTTP API call with automatic escrow protection. This is the flagship PayCrow tool.
 
 Flow: Create escrow → Call API → Verify response → Auto-release or auto-dispute.
 

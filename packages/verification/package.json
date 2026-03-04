@@ -1,5 +1,5 @@
 {
-  "name": "@agora402/verification",
+  "name": "@paycrow/verification",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@agora402/core": "workspace:*",
+    "@paycrow/core": "workspace:*",
     "ajv": "^8.17.0"
   },
   "devDependencies": {

@@ -1,8 +1,8 @@
-# agora402
+# paycrow
 
 The trust layer for agent-to-agent commerce. Escrow protection for x402 payments on Base.
 
-Agents pay for API calls with USDC via [x402](https://x402.org). But payments are final — no refunds, no disputes, no recourse. **agora402** fixes this by routing payments through on-chain escrow: funds are locked until delivery is verified, then released automatically.
+Agents pay for API calls with USDC via [x402](https://x402.org). But payments are final — no refunds, no disputes, no recourse. **paycrow** fixes this by routing payments through on-chain escrow: funds are locked until delivery is verified, then released automatically.
 
 Install as an MCP server. Your agent gets escrow-protected payments in one tool call.
 
@@ -11,7 +11,7 @@ Install as an MCP server. Your agent gets escrow-protected payments in one tool 
 ### 1. Generate a wallet
 
 ```bash
-npx agora402 init
+npx paycrow init
 ```
 
 This creates a fresh wallet and prints your Claude Desktop config — copy-paste and go.
@@ -25,9 +25,9 @@ Send a small amount of ETH (for gas, ~$0.50) and USDC (for payments) to the prin
 ```json
 {
   "mcpServers": {
-    "agora402": {
+    "paycrow": {
       "command": "npx",
-      "args": ["agora402"],
+      "args": ["paycrow"],
       "env": {
         "PRIVATE_KEY": "0x_YOUR_KEY_FROM_INIT"
       }
@@ -41,7 +41,7 @@ Restart Claude Desktop. Done — your agent now has escrow-protected payments.
 ### Any MCP Client
 
 ```bash
-PRIVATE_KEY=0x... npx agora402
+PRIVATE_KEY=0x... npx paycrow
 ```
 
 Runs over stdio. Compatible with any MCP client (Claude Desktop, Claude Code, Cursor, Windsurf, OpenClaw, etc).
@@ -99,14 +99,14 @@ Check the current state of an escrow.
 
 ### `trust_score_query`
 
-Look up any agent's on-chain trust score before transacting. Reads the Agora402 Reputation contract — scores are 0-100 based on real escrow history, not self-reported.
+Look up any agent's on-chain trust score before transacting. Reads the PayCrow Reputation contract — scores are 0-100 based on real escrow history, not self-reported.
 
 Returns: score, success rate, volume, timestamps, recommendation (high_trust / moderate_trust / low_trust).
 
 ## How It Works
 
 ```
-Agent (buyer) ──→ agora402 MCP Server ──→ Escrow Contract (Base L2)
+Agent (buyer) ──→ paycrow MCP Server ──→ Escrow Contract (Base L2)
                         │                        │
                   Verify response          USDC held until
                   (schema/hash)            delivery confirmed
@@ -146,7 +146,7 @@ Solidity smart contracts with:
 - OpenZeppelin ReentrancyGuard + Pausable
 - 135 tests (unit + fuzz + invariant + integration)
 
-Source: [github.com/michu5696/agora402](https://github.com/michu5696/agora402)
+Source: [github.com/michu5696/paycrow](https://github.com/michu5696/paycrow)
 
 ## License
 

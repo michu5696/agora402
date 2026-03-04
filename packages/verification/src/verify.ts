@@ -1,4 +1,4 @@
-import type { VerificationResult, VerificationStrategy } from "@agora402/core";
+import type { VerificationResult, VerificationStrategy } from "@paycrow/core";
 import { HashLockVerifier } from "./strategies/hash-lock.js";
 import { SchemaVerifier } from "./strategies/schema.js";
 

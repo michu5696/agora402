@@ -8,10 +8,10 @@ export default defineConfig({
   clean: true,
   // Bundle workspace packages inline so npm package is self-contained
   noExternal: [
-    "@agora402/core",
-    "@agora402/escrow-client",
-    "@agora402/trust",
-    "@agora402/verification",
+    "@paycrow/core",
+    "@paycrow/escrow-client",
+    "@paycrow/trust",
+    "@paycrow/verification",
   ],
   // Keep npm-published deps as external (users install them)
   external: [

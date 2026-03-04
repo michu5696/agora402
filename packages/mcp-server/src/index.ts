@@ -1,6 +1,6 @@
-// ── CLI: `npx agora402 serve` — Start x402-gated Trust Score API ────
+// ── CLI: `npx paycrow serve` — Start x402-gated Trust Score API ────
 if (process.argv[2] === "serve") {
-  const { startTrustServer } = await import("@agora402/trust");
+  const { startTrustServer } = await import("@paycrow/trust");
   const { getChainName, getRpcUrl, getReputationAddress } = await import(
     "./config.js"
   );
@@ -8,13 +8,13 @@ if (process.argv[2] === "serve") {
   const payTo = process.env.PAY_TO;
   if (!payTo) {
     console.error(`
-  Agora402 Trust API — Missing Configuration
+  PayCrow Trust API — Missing Configuration
   ───────────────────────────────────────────
 
   PAY_TO is required: your wallet address to receive USDC payments.
 
   Usage:
-    PAY_TO=0xYourAddress CHAIN=base npx agora402 serve
+    PAY_TO=0xYourAddress CHAIN=base npx paycrow serve
 
   Required env vars:
     PAY_TO              Your wallet address for receiving USDC
@@ -52,7 +52,7 @@ if (process.argv[2] === "serve") {
   await new Promise(() => {});
 }
 
-// ── CLI: `npx agora402 init` ────────────────────────────────────────
+// ── CLI: `npx paycrow init` ────────────────────────────────────────
 if (process.argv[2] === "init") {
   const { generatePrivateKey, privateKeyToAccount } = await import(
     "viem/accounts"
@@ -62,7 +62,7 @@ if (process.argv[2] === "init") {
   const account = privateKeyToAccount(privateKey);
 
   console.log(`
-  Agora402 — Agent Wallet Setup
+  PayCrow — Agent Wallet Setup
   ─────────────────────────────
 
   Your new agent wallet:
@@ -79,9 +79,9 @@ if (process.argv[2] === "init") {
 
        {
          "mcpServers": {
-           "agora402": {
+           "paycrow": {
              "command": "npx",
-             "args": ["agora402"],
+             "args": ["paycrow"],
              "env": {
                "PRIVATE_KEY": "${privateKey}"
              }
@@ -110,7 +110,7 @@ const { registerTrustTools } = await import("./tools/trust.js");
 const { registerX402Tools } = await import("./tools/x402.js");
 
 const server = new McpServer({
-  name: "agora402",
+  name: "paycrow",
   version: "0.4.0",
 });
 

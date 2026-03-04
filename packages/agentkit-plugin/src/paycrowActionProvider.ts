@@ -34,19 +34,19 @@ import {
   STATE_NAMES,
 } from "./constants.js";
 
-export interface Agora402Config {
+export interface PayCrowConfig {
   escrowAddress?: Address;
   reputationAddress?: Address;
   usdcAddress?: Address;
 }
 
-export class Agora402ActionProvider extends ActionProvider<EvmWalletProvider> {
+export class PayCrowActionProvider extends ActionProvider<EvmWalletProvider> {
   private escrowAddress?: Address;
   private reputationAddress?: Address;
   private usdcAddress?: Address;
 
-  constructor(config?: Agora402Config) {
-    super("agora402", []);
+  constructor(config?: PayCrowConfig) {
+    super("paycrow", []);
     this.escrowAddress = config?.escrowAddress;
     this.reputationAddress = config?.reputationAddress;
     this.usdcAddress = config?.usdcAddress;
@@ -55,7 +55,7 @@ export class Agora402ActionProvider extends ActionProvider<EvmWalletProvider> {
   private getEscrowAddress(chainId: number): Address {
     if (this.escrowAddress) return this.escrowAddress;
     const addr = ESCROW_ADDRESSES[chainId];
-    if (!addr) throw new Error(`No Agora402 escrow contract on chain ${chainId}`);
+    if (!addr) throw new Error(`No PayCrow escrow contract on chain ${chainId}`);
     return addr;
   }
 
@@ -63,7 +63,7 @@ export class Agora402ActionProvider extends ActionProvider<EvmWalletProvider> {
     if (this.reputationAddress) return this.reputationAddress;
     const addr = REPUTATION_ADDRESSES[chainId];
     if (!addr)
-      throw new Error(`No Agora402 reputation contract on chain ${chainId}`);
+      throw new Error(`No PayCrow reputation contract on chain ${chainId}`);
     return addr;
   }
 
@@ -360,7 +360,7 @@ export class Agora402ActionProvider extends ActionProvider<EvmWalletProvider> {
 
   @CreateAction({
     name: "protected_api_call",
-    description: `Make an HTTP API call with automatic escrow protection. This is the flagship Agora402 tool.
+    description: `Make an HTTP API call with automatic escrow protection. This is the flagship PayCrow tool.
 
 Flow: Check trust score → Create escrow → Call API → Verify response matches JSON Schema → Auto-release payment if valid, auto-dispute if not.
 
@@ -541,5 +541,5 @@ function validateSchema(
   return true;
 }
 
-export const agora402ActionProvider = (config?: Agora402Config) =>
-  new Agora402ActionProvider(config);
+export const paycrowActionProvider = (config?: PayCrowConfig) =>
+  new PayCrowActionProvider(config);

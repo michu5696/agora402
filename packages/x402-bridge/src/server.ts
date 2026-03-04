@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import {
-  Agora402Facilitator,
-  type Agora402FacilitatorConfig,
+  PayCrowFacilitator,
+  type PayCrowFacilitatorConfig,
   type PaymentPayload,
   type PaymentRequirements,
 } from "./facilitator.js";
@@ -11,7 +11,7 @@ import {
  *
  * Endpoints:
  *   POST /verify     — Verify a payment payload
- *   POST /settle     — Settle a payment through Agora402 escrow
+ *   POST /settle     — Settle a payment through PayCrow escrow
  *   GET  /supported  — Return supported schemes and networks
  *
  * Resource servers point their facilitator URL here:
@@ -20,9 +20,9 @@ import {
  * This replaces https://x402.org/facilitator with escrow-protected settlement.
  */
 export function startFacilitatorServer(
-  config: Agora402FacilitatorConfig & { port?: number }
+  config: PayCrowFacilitatorConfig & { port?: number }
 ): ReturnType<typeof createServer> {
-  const facilitator = new Agora402Facilitator(config);
+  const facilitator = new PayCrowFacilitator(config);
   const port = config.port ?? 4020;
 
   async function readBody(req: IncomingMessage): Promise<string> {
@@ -90,10 +90,10 @@ export function startFacilitatorServer(
       // GET / — health check
       if (req.method === "GET" && url.pathname === "/") {
         json(res, 200, {
-          name: "agora402-facilitator",
+          name: "paycrow-facilitator",
           version: "0.1.0",
           description:
-            "x402 facilitator with Agora402 escrow protection. Drop-in replacement for x402.org/facilitator.",
+            "x402 facilitator with PayCrow escrow protection. Drop-in replacement for x402.org/facilitator.",
           endpoints: ["/verify", "/settle", "/supported"],
         });
         return;
@@ -108,7 +108,7 @@ export function startFacilitatorServer(
   });
 
   server.listen(port, () => {
-    console.log(`Agora402 facilitator running at http://localhost:${port}`);
+    console.log(`PayCrow facilitator running at http://localhost:${port}`);
     console.log(`  POST /verify     — Verify payment`);
     console.log(`  POST /settle     — Settle through escrow`);
     console.log(`  GET  /supported  — Supported schemes`);

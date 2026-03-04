@@ -1,8 +1,8 @@
 {
-  "name": "agora402",
-  "version": "0.5.1",
-  "mcpName": "io.github.michu5696/agora402",
-  "description": "MCP server for agent-to-agent escrow protection on x402. PayPal for autonomous agents.",
+  "name": "paycrow",
+  "version": "1.0.0",
+  "mcpName": "io.github.michu5696/paycrow",
+  "description": "Escrow protection for autonomous agent payments on Base. USDC held in smart contract until the job is done. PayPal for AI agents via x402.",
   "keywords": [
     "mcp",
     "mcp-server",
@@ -21,7 +21,7 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "agora402": "dist/index.js"
+    "paycrow": "dist/index.js"
   },
   "files": [
     "dist",
@@ -29,11 +29,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/michu5696/agora402"
+    "url": "https://github.com/michu5696/paycrow"
   },
-  "homepage": "https://github.com/michu5696/agora402#readme",
+  "homepage": "https://github.com/michu5696/paycrow#readme",
   "bugs": {
-    "url": "https://github.com/michu5696/agora402/issues"
+    "url": "https://github.com/michu5696/paycrow/issues"
   },
   "scripts": {
     "build": "tsup",
@@ -50,10 +50,10 @@
     "zod": "^3.24.0"
   },
   "devDependencies": {
-    "@agora402/core": "workspace:*",
-    "@agora402/escrow-client": "workspace:*",
-    "@agora402/trust": "workspace:*",
-    "@agora402/verification": "workspace:*",
+    "@paycrow/core": "workspace:*",
+    "@paycrow/escrow-client": "workspace:*",
+    "@paycrow/trust": "workspace:*",
+    "@paycrow/verification": "workspace:*",
     "@types/node": "^25.3.3",
     "tsup": "^8.5.1",
     "tsx": "^4.19.0",

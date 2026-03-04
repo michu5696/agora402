@@ -20,7 +20,7 @@ import {
   type CreateEscrowParams,
   EscrowState,
   USDC_ADDRESSES,
-} from "@agora402/core";
+} from "@paycrow/core";
 
 const erc20Abi = [
   {

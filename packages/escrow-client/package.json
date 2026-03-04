@@ -1,5 +1,5 @@
 {
-  "name": "@agora402/escrow-client",
+  "name": "@paycrow/escrow-client",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@agora402/core": "workspace:*",
+    "@paycrow/core": "workspace:*",
     "viem": "^2.23.0"
   },
   "devDependencies": {
