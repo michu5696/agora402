@@ -1,6 +1,6 @@
 {
   "name": "paycrow",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "mcpName": "io.github.michu5696/paycrow",
   "description": "Escrow protection for autonomous agent payments on Base. USDC held in smart contract until the job is done. PayPal for AI agents via x402.",
   "keywords": [
