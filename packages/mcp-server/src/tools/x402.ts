@@ -6,18 +6,290 @@ import {
   parseUsdc,
   type VerificationStrategy,
 } from "@paycrow/core";
+import { computeTrustScore } from "@paycrow/trust";
 import type { Address } from "viem";
 import { keccak256, toBytes } from "viem";
-import { getEscrowClient } from "../config.js";
+import { getEscrowClient, getChainName, getRpcUrl, getReputationAddress } from "../config.js";
 
 export function registerX402Tools(server: McpServer): void {
+  // ── safe_pay — Trust-informed smart escrow ──
+  // The killer feature: checks trust THEN auto-configures escrow protection.
+  // Nobody else has this. Reduces x402_protected_call from 9 params to 4.
+  server.tool(
+    "safe_pay",
+    `The smart way to pay an agent. Checks their trust score first, then auto-configures escrow protection based on risk.
+
+Flow: Check trust → Set protection level → Create escrow → Call API → Verify → Auto-release or auto-dispute.
+
+Protection levels (automatic):
+- High trust agent → 15min timelock, proceed normally
+- Moderate trust → 60min timelock, payment capped at $25
+- Low trust → 4hr timelock, payment capped at $5
+- Unknown/caution → BLOCKED — will not send funds
+
+This is the recommended tool for paying any agent. If you need manual control, use x402_protected_call instead.`,
+    {
+      url: z.string().url().describe("The API endpoint URL to call"),
+      seller_address: z
+        .string()
+        .describe("Ethereum address of the agent you're paying"),
+      amount_usdc: z
+        .number()
+        .min(0.1)
+        .max(100)
+        .describe("Amount to pay in USDC"),
+      method: z
+        .enum(["GET", "POST", "PUT", "DELETE"])
+        .default("GET")
+        .describe("HTTP method (default: GET)"),
+      headers: z
+        .record(z.string())
+        .optional()
+        .describe("HTTP headers to include"),
+      body: z.string().optional().describe("Request body (for POST/PUT)"),
+    },
+    async ({ url, seller_address, amount_usdc, method, headers, body }) => {
+      // Step 1: Check trust
+      const chainName = getChainName();
+      let trustScore;
+      try {
+        trustScore = await computeTrustScore(seller_address as Address, {
+          chain: chainName as "base" | "base-sepolia",
+          rpcUrl: getRpcUrl(),
+          reputationAddress: getReputationAddress(),
+          basescanApiKey: process.env.BASESCAN_API_KEY,
+          moltbookAppKey: process.env.MOLTBOOK_APP_KEY,
+        });
+      } catch {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                success: false,
+                step: "trust_check",
+                error:
+                  "Could not verify seller trust. Refusing to send funds to unverified agent.",
+                recommendation:
+                  "Use trust_gate to manually check the agent, or use x402_protected_call with explicit parameters.",
+              }),
+            },
+          ],
+        };
+      }
+
+      // Step 2: Determine protection level
+      let timelockMinutes: number;
+      let maxAmount: number;
+
+      if (
+        trustScore.recommendation === "high_trust" &&
+        trustScore.confidence !== "low"
+      ) {
+        timelockMinutes = 15;
+        maxAmount = 100;
+      } else if (
+        trustScore.recommendation === "moderate_trust" ||
+        (trustScore.recommendation === "high_trust" &&
+          trustScore.confidence === "low")
+      ) {
+        timelockMinutes = 60;
+        maxAmount = 25;
+      } else if (trustScore.recommendation === "low_trust") {
+        timelockMinutes = 240;
+        maxAmount = 5;
+      } else {
+        // caution or insufficient_data — BLOCK
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  success: false,
+                  step: "trust_check",
+                  blocked: true,
+                  seller: seller_address,
+                  trustScore: trustScore.score,
+                  confidence: trustScore.confidence,
+                  recommendation: trustScore.recommendation,
+                  sourcesUsed: trustScore.sourcesUsed,
+                  reason:
+                    trustScore.recommendation === "caution"
+                      ? "Agent has a high dispute rate. PayCrow blocked this payment to protect your funds."
+                      : "Agent has no verifiable on-chain history. PayCrow blocked this payment. Use trust_gate for details.",
+                  message: `Payment to ${seller_address} BLOCKED. Trust: ${trustScore.recommendation}. Do not send funds to this agent.`,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      // Step 3: Cap amount
+      if (amount_usdc > maxAmount) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  success: false,
+                  step: "amount_check",
+                  seller: seller_address,
+                  requestedAmount: amount_usdc,
+                  maxAllowed: maxAmount,
+                  trustScore: trustScore.score,
+                  recommendation: trustScore.recommendation,
+                  reason: `Trust level "${trustScore.recommendation}" limits payments to $${maxAmount}. Requested: $${amount_usdc}. Reduce the amount or use x402_protected_call to override.`,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      // Step 4: Create escrow + call API
+      const client = getEscrowClient();
+      const amount = parseUsdc(amount_usdc);
+      const timelockDuration = BigInt(timelockMinutes * 60);
+      const serviceHash = keccak256(toBytes(url));
+
+      const { escrowId, txHash: createTx } = await client.createAndFund({
+        seller: seller_address as Address,
+        amount,
+        timelockDuration,
+        serviceHash,
+      });
+
+      // Step 5: Make the API call
+      let apiResponse: Response;
+      let responseBody: string;
+      try {
+        apiResponse = await fetch(url, {
+          method,
+          headers: headers as HeadersInit | undefined,
+          body: method === "GET" || method === "DELETE" ? undefined : body,
+        });
+        responseBody = await apiResponse.text();
+      } catch (error) {
+        const disputeTx = await client.dispute(escrowId);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  success: false,
+                  escrowId: escrowId.toString(),
+                  step: "api_call",
+                  error: `API call failed: ${error instanceof Error ? error.message : String(error)}`,
+                  action: "auto_disputed",
+                  trustScore: trustScore.score,
+                  createTx,
+                  disputeTx,
+                  message: `Escrow #${escrowId} auto-disputed. API to ${url} failed. Funds protected by PayCrow dispute resolution.`,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      // Step 6: Verify response (auto: valid JSON + 2xx status = release)
+      let parsedResponse: unknown;
+      try {
+        parsedResponse = JSON.parse(responseBody);
+      } catch {
+        parsedResponse = responseBody;
+      }
+
+      const isSuccess = apiResponse.status >= 200 && apiResponse.status < 300;
+      const isJsonResponse = parsedResponse !== responseBody;
+
+      if (isSuccess && isJsonResponse) {
+        // Valid JSON response with 2xx status → auto-release
+        const releaseTx = await client.release(escrowId);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  success: true,
+                  escrowId: escrowId.toString(),
+                  amount: formatUsdc(amount),
+                  seller: seller_address,
+                  url,
+                  httpStatus: apiResponse.status,
+                  trustScore: trustScore.score,
+                  trustRecommendation: trustScore.recommendation,
+                  timelockUsed: `${timelockMinutes}min`,
+                  action: "auto_released",
+                  createTx,
+                  releaseTx,
+                  response: parsedResponse,
+                  message: `Payment of ${formatUsdc(amount)} released to ${seller_address}. Trust-verified and response confirmed.`,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      } else {
+        // Bad response → auto-dispute. Funds locked for arbiter.
+        const disputeTx = await client.dispute(escrowId);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  success: false,
+                  escrowId: escrowId.toString(),
+                  amount: formatUsdc(amount),
+                  seller: seller_address,
+                  url,
+                  httpStatus: apiResponse.status,
+                  trustScore: trustScore.score,
+                  action: "auto_disputed",
+                  disputeReason: !isSuccess
+                    ? `HTTP ${apiResponse.status} error response`
+                    : "Response is not valid JSON",
+                  createTx,
+                  disputeTx,
+                  response: parsedResponse,
+                  message: `Escrow #${escrowId} auto-disputed. ${!isSuccess ? `HTTP ${apiResponse.status}` : "Invalid response format"}. Funds protected by PayCrow dispute resolution.`,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+    }
+  );
+
+  // ── x402_protected_call — Advanced escrow with manual control ──
   server.tool(
     "x402_protected_call",
-    `Make an HTTP API call with automatic escrow protection. This is the flagship PayCrow tool.
+    `Make an HTTP API call with manual escrow protection. Full control over verification and timelock parameters.
 
-Flow: Create escrow → Call API → Verify response → Auto-release or auto-dispute.
+For most payments, use safe_pay instead — it auto-configures protection based on seller trust.
 
-Use this instead of direct x402 payments to get buyer protection. If the API returns bad data, your funds are automatically disputed and locked for arbiter review.`,
+Use x402_protected_call when you need:
+- Custom JSON Schema verification (not just "valid JSON + 2xx")
+- Hash-lock verification (exact response match)
+- Specific timelock durations
+- To override safe_pay's trust-based amount limits`,
     {
       url: z.string().url().describe("The API endpoint URL to call"),
       method: z
@@ -95,7 +367,6 @@ Use this instead of direct x402 payments to get buyer protection. If the API ret
         // API call failed — auto-dispute
         const disputeTx = await client.dispute(escrowId);
 
-
         return {
           content: [
             {
@@ -144,7 +415,6 @@ Use this instead of direct x402 payments to get buyer protection. If the API ret
       if (result.valid) {
         const releaseTx = await client.release(escrowId);
 
-
         return {
           content: [
             {
@@ -176,7 +446,6 @@ Use this instead of direct x402 payments to get buyer protection. If the API ret
         };
       } else {
         const disputeTx = await client.dispute(escrowId);
-
 
         return {
           content: [

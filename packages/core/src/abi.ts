@@ -1,4 +1,4 @@
-export const agora402EscrowAbi = [
+export const payCrowEscrowAbi = [
   {
     type: "constructor",
     inputs: [
@@ -353,7 +353,7 @@ export const agora402EscrowAbi = [
   },
 ] as const;
 
-export const agora402RouterAbi = [
+export const payCrowRouterAbi = [
   {
     type: "constructor",
     inputs: [
@@ -408,7 +408,7 @@ export const agora402RouterAbi = [
   },
 ] as const;
 
-export const agora402ReputationAbi = [
+export const payCrowReputationAbi = [
   {
     type: "constructor",
     inputs: [],

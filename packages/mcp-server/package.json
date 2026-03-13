@@ -15,7 +15,15 @@
     "trust",
     "ethereum",
     "stablecoin",
-    "agent-commerce"
+    "agent-commerce",
+    "dispute-resolution",
+    "payment-protection",
+    "trust-scoring",
+    "reputation",
+    "erc-8004",
+    "agent-to-agent",
+    "a2a",
+    "smart-contract"
   ],
   "license": "MIT",
   "type": "module",

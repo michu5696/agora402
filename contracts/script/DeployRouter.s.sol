@@ -2,10 +2,10 @@
 pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
-import {Agora402EscrowRouter} from "../src/Agora402EscrowRouter.sol";
-import {Agora402Escrow} from "../src/Agora402Escrow.sol";
+import {PayCrowEscrowRouter} from "../src/PayCrowEscrowRouter.sol";
+import {PayCrowEscrow} from "../src/PayCrowEscrow.sol";
 
-/// @notice Deploy Agora402EscrowRouter and authorize it on the existing escrow contract
+/// @notice Deploy PayCrowEscrowRouter and authorize it on the existing escrow contract
 contract DeployRouterScript is Script {
     address constant BASE_SEPOLIA_USDC = 0x036CbD53842c5426634e7929541eC2318f3dCF7e;
 
@@ -16,14 +16,14 @@ contract DeployRouterScript is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         // Deploy router
-        Agora402EscrowRouter router = new Agora402EscrowRouter(
+        PayCrowEscrowRouter router = new PayCrowEscrowRouter(
             BASE_SEPOLIA_USDC,
             escrowAddress
         );
-        console.log("Agora402EscrowRouter deployed at:", address(router));
+        console.log("PayCrowEscrowRouter deployed at:", address(router));
 
         // Authorize router on escrow contract
-        Agora402Escrow escrow = Agora402Escrow(escrowAddress);
+        PayCrowEscrow escrow = PayCrowEscrow(escrowAddress);
         escrow.setRouter(address(router), true);
         console.log("Router authorized on escrow contract");
 

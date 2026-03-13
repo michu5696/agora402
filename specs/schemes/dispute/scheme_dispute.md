@@ -175,7 +175,7 @@ Reputation records are queryable per-agent and composable with other trust signa
 
 ### Reference Implementation
 
-- **Escrow contract**: [Agora402Escrow.sol](https://github.com/mcastellano/agora402/blob/main/contracts/src/Agora402Escrow.sol) — deployed on Base mainnet at `0xDcA5E5Dd1E969A4b824adDE41569a5d80A965aDe`
-- **Reputation contract**: [Agora402Reputation.sol](https://github.com/mcastellano/agora402/blob/main/contracts/src/Agora402Reputation.sol) — deployed on Base mainnet at `0x9Ea8c817bFDfb15FA50a30b08A186Cb213F11BCC`
-- **MCP server**: [agora402](https://www.npmjs.com/package/agora402) — 5 tools for escrow management and trust scoring
+- **Escrow contract**: [PayCrowEscrow.sol](https://github.com/mcastellano/paycrow/blob/main/contracts/src/PayCrowEscrow.sol) — deployed on Base mainnet at `0xDcA5E5Dd1E969A4b824adDE41569a5d80A965aDe`
+- **Reputation contract**: [PayCrowReputation.sol](https://github.com/mcastellano/paycrow/blob/main/contracts/src/PayCrowReputation.sol) — deployed on Base mainnet at `0x9Ea8c817bFDfb15FA50a30b08A186Cb213F11BCC`
+- **MCP server**: [paycrow](https://www.npmjs.com/package/paycrow) — 5 tools for escrow management and trust scoring
 - **Test suite**: 66 tests including fuzz testing for state machine transitions and fee calculations

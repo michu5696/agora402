@@ -8,7 +8,7 @@ import { getEscrowClient } from "../config.js";
 export function registerEscrowTools(server: McpServer): void {
   server.tool(
     "escrow_create",
-    "Create a USDC escrow to protect an agent-to-agent transaction. Funds are locked until you confirm delivery (release) or flag a problem (dispute).",
+    "Create a USDC escrow with built-in dispute resolution. Funds are locked on-chain until delivery is confirmed (release) or a problem is flagged (dispute). If disputed, an arbiter reviews and rules — the only escrow service with real dispute resolution on Base.",
     {
       seller: z
         .string()
@@ -101,7 +101,7 @@ export function registerEscrowTools(server: McpServer): void {
 
   server.tool(
     "escrow_dispute",
-    "Flag a problem with delivery. Locks the escrowed funds for arbiter review. Use when the service was not delivered or quality was unacceptable.",
+    "Flag a problem with delivery — PayCrow's key differentiator. Locks escrowed funds and triggers arbiter review. Unlike other escrow services that say 'no disputes, no chargebacks', PayCrow has real on-chain dispute resolution. Use when service was not delivered or quality was unacceptable.",
     {
       escrow_id: z.string().describe("The escrow ID to dispute"),
       reason: z

@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {Agora402Escrow} from "../src/Agora402Escrow.sol";
-import {Agora402EscrowRouter, IERC20WithAuthorization} from "../src/Agora402EscrowRouter.sol";
+import {PayCrowEscrow} from "../src/PayCrowEscrow.sol";
+import {PayCrowEscrowRouter, IERC20WithAuthorization} from "../src/PayCrowEscrowRouter.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -43,10 +43,10 @@ contract MockUSDCWithAuth is ERC20 {
     }
 }
 
-// ─── createAndFundFor Tests (on Agora402Escrow) ─────────────────────────────
+// ─── createAndFundFor Tests (on PayCrowEscrow) ─────────────────────────────
 
 contract CreateAndFundForTest is Test {
-    Agora402Escrow public escrow;
+    PayCrowEscrow public escrow;
     MockUSDCWithAuth public usdc;
 
     address public owner = address(this);
@@ -65,7 +65,7 @@ contract CreateAndFundForTest is Test {
 
     function setUp() public {
         usdc = new MockUSDCWithAuth();
-        escrow = new Agora402Escrow(address(usdc), arbiter, treasury, DEFAULT_FEE_BPS);
+        escrow = new PayCrowEscrow(address(usdc), arbiter, treasury, DEFAULT_FEE_BPS);
 
         // Authorize the router
         escrow.setRouter(router, true);
@@ -91,19 +91,19 @@ contract CreateAndFundForTest is Test {
 
     function test_setRouter_revertsIfNotOwner() public {
         vm.prank(attacker);
-        vm.expectRevert(Agora402Escrow.NotOwner.selector);
+        vm.expectRevert(PayCrowEscrow.NotOwner.selector);
         escrow.setRouter(router, true);
     }
 
     function test_setRouter_revertsOnZero() public {
-        vm.expectRevert(Agora402Escrow.ZeroAddress.selector);
+        vm.expectRevert(PayCrowEscrow.ZeroAddress.selector);
         escrow.setRouter(address(0), true);
     }
 
     function test_setRouter_emitsEvent() public {
         address newRouter = makeAddr("newRouter");
         vm.expectEmit(true, false, false, true);
-        emit Agora402Escrow.RouterUpdated(newRouter, true);
+        emit PayCrowEscrow.RouterUpdated(newRouter, true);
         escrow.setRouter(newRouter, true);
     }
 
@@ -120,11 +120,11 @@ contract CreateAndFundForTest is Test {
         assertEq(escrowId, 0);
 
         // Check escrow state
-        (address b, address s, uint256 amt,,,Agora402Escrow.EscrowState state,) = escrow.getEscrow(escrowId);
+        (address b, address s, uint256 amt,,,PayCrowEscrow.EscrowState state,) = escrow.getEscrow(escrowId);
         assertEq(b, buyer); // Buyer is the specified buyer, NOT the router
         assertEq(s, seller);
         assertEq(amt, TEN_USDC);
-        assertEq(uint8(state), uint8(Agora402Escrow.EscrowState.Funded));
+        assertEq(uint8(state), uint8(PayCrowEscrow.EscrowState.Funded));
 
         // USDC moved from router to escrow contract
         assertEq(usdc.balanceOf(router), routerBalBefore - TEN_USDC);
@@ -141,8 +141,8 @@ contract CreateAndFundForTest is Test {
         vm.prank(buyer);
         escrow.release(escrowId);
 
-        (,,,,, Agora402Escrow.EscrowState state,) = escrow.getEscrow(escrowId);
-        assertEq(uint8(state), uint8(Agora402Escrow.EscrowState.Released));
+        (,,,,, PayCrowEscrow.EscrowState state,) = escrow.getEscrow(escrowId);
+        assertEq(uint8(state), uint8(PayCrowEscrow.EscrowState.Released));
     }
 
     function test_createAndFundFor_buyerCanDispute() public {
@@ -155,8 +155,8 @@ contract CreateAndFundForTest is Test {
         vm.prank(buyer);
         escrow.dispute(escrowId);
 
-        (,,,,, Agora402Escrow.EscrowState state,) = escrow.getEscrow(escrowId);
-        assertEq(uint8(state), uint8(Agora402Escrow.EscrowState.Disputed));
+        (,,,,, PayCrowEscrow.EscrowState state,) = escrow.getEscrow(escrowId);
+        assertEq(uint8(state), uint8(PayCrowEscrow.EscrowState.Disputed));
     }
 
     function test_createAndFundFor_routerCannotRelease() public {
@@ -167,14 +167,14 @@ contract CreateAndFundForTest is Test {
 
         // Router is NOT the buyer, cannot release
         vm.prank(router);
-        vm.expectRevert(Agora402Escrow.NotBuyer.selector);
+        vm.expectRevert(PayCrowEscrow.NotBuyer.selector);
         escrow.release(escrowId);
     }
 
     function test_createAndFundFor_emitsEvents() public {
         vm.prank(router);
         vm.expectEmit(true, true, true, true);
-        emit Agora402Escrow.EscrowCreated(0, buyer, seller, TEN_USDC, block.timestamp + DEFAULT_TIMELOCK, SERVICE_HASH);
+        emit PayCrowEscrow.EscrowCreated(0, buyer, seller, TEN_USDC, block.timestamp + DEFAULT_TIMELOCK, SERVICE_HASH);
         escrow.createAndFundFor(buyer, seller, TEN_USDC, DEFAULT_TIMELOCK, SERVICE_HASH);
     }
 
@@ -182,31 +182,31 @@ contract CreateAndFundForTest is Test {
 
     function test_createAndFundFor_revertsIfNotRouter() public {
         vm.prank(attacker);
-        vm.expectRevert(Agora402Escrow.NotAuthorizedRouter.selector);
+        vm.expectRevert(PayCrowEscrow.NotAuthorizedRouter.selector);
         escrow.createAndFundFor(buyer, seller, TEN_USDC, DEFAULT_TIMELOCK, SERVICE_HASH);
     }
 
     function test_createAndFundFor_revertsIfBuyerZero() public {
         vm.prank(router);
-        vm.expectRevert(Agora402Escrow.ZeroAddress.selector);
+        vm.expectRevert(PayCrowEscrow.ZeroAddress.selector);
         escrow.createAndFundFor(address(0), seller, TEN_USDC, DEFAULT_TIMELOCK, SERVICE_HASH);
     }
 
     function test_createAndFundFor_revertsIfSellerZero() public {
         vm.prank(router);
-        vm.expectRevert(Agora402Escrow.ZeroAddress.selector);
+        vm.expectRevert(PayCrowEscrow.ZeroAddress.selector);
         escrow.createAndFundFor(buyer, address(0), TEN_USDC, DEFAULT_TIMELOCK, SERVICE_HASH);
     }
 
     function test_createAndFundFor_revertsIfBuyerIsSeller() public {
         vm.prank(router);
-        vm.expectRevert(Agora402Escrow.BuyerIsSeller.selector);
+        vm.expectRevert(PayCrowEscrow.BuyerIsSeller.selector);
         escrow.createAndFundFor(buyer, buyer, TEN_USDC, DEFAULT_TIMELOCK, SERVICE_HASH);
     }
 
     function test_createAndFundFor_revertsIfAmountTooLow() public {
         vm.prank(router);
-        vm.expectRevert(Agora402Escrow.AmountTooLow.selector);
+        vm.expectRevert(PayCrowEscrow.AmountTooLow.selector);
         escrow.createAndFundFor(buyer, seller, 1, DEFAULT_TIMELOCK, SERVICE_HASH);
     }
 
@@ -214,7 +214,7 @@ contract CreateAndFundForTest is Test {
         uint256 tooHigh = 100_000_001;
         usdc.mint(router, tooHigh);
         vm.prank(router);
-        vm.expectRevert(Agora402Escrow.AmountTooHigh.selector);
+        vm.expectRevert(PayCrowEscrow.AmountTooHigh.selector);
         escrow.createAndFundFor(buyer, seller, tooHigh, DEFAULT_TIMELOCK, SERVICE_HASH);
     }
 
@@ -241,11 +241,11 @@ contract CreateAndFundForTest is Test {
     }
 }
 
-// ─── Agora402EscrowRouter Tests ─────────────────────────────────────────────
+// ─── PayCrowEscrowRouter Tests ─────────────────────────────────────────────
 
-contract Agora402EscrowRouterTest is Test {
-    Agora402Escrow public escrow;
-    Agora402EscrowRouter public router;
+contract PayCrowEscrowRouterTest is Test {
+    PayCrowEscrow public escrow;
+    PayCrowEscrowRouter public router;
     MockUSDCWithAuth public usdc;
 
     address public owner = address(this);
@@ -263,8 +263,8 @@ contract Agora402EscrowRouterTest is Test {
 
     function setUp() public {
         usdc = new MockUSDCWithAuth();
-        escrow = new Agora402Escrow(address(usdc), arbiter, treasury, DEFAULT_FEE_BPS);
-        router = new Agora402EscrowRouter(address(usdc), address(escrow));
+        escrow = new PayCrowEscrow(address(usdc), arbiter, treasury, DEFAULT_FEE_BPS);
+        router = new PayCrowEscrowRouter(address(usdc), address(escrow));
 
         // Authorize the router on the escrow contract
         escrow.setRouter(address(router), true);
@@ -292,11 +292,11 @@ contract Agora402EscrowRouterTest is Test {
         );
 
         // Escrow created with buyer = the original client
-        (address b, address s, uint256 amt,,, Agora402Escrow.EscrowState state,) = escrow.getEscrow(escrowId);
+        (address b, address s, uint256 amt,,, PayCrowEscrow.EscrowState state,) = escrow.getEscrow(escrowId);
         assertEq(b, buyer);
         assertEq(s, seller);
         assertEq(amt, TEN_USDC);
-        assertEq(uint8(state), uint8(Agora402Escrow.EscrowState.Funded));
+        assertEq(uint8(state), uint8(PayCrowEscrow.EscrowState.Funded));
 
         // USDC moved from buyer → router → escrow contract
         assertEq(usdc.balanceOf(buyer), buyerBalBefore - TEN_USDC);
@@ -334,22 +334,22 @@ contract Agora402EscrowRouterTest is Test {
         vm.prank(buyer);
         escrow.dispute(escrowId);
 
-        (,,,,, Agora402Escrow.EscrowState state,) = escrow.getEscrow(escrowId);
-        assertEq(uint8(state), uint8(Agora402Escrow.EscrowState.Disputed));
+        (,,,,, PayCrowEscrow.EscrowState state,) = escrow.getEscrow(escrowId);
+        assertEq(uint8(state), uint8(PayCrowEscrow.EscrowState.Disputed));
 
         // Arbiter resolves — full refund to buyer
         uint256 distributable = TEN_USDC - (TEN_USDC * DEFAULT_FEE_BPS) / 10_000;
         vm.prank(arbiter);
         escrow.resolve(escrowId, distributable, 0);
 
-        (,,,,, Agora402Escrow.EscrowState resolved,) = escrow.getEscrow(escrowId);
-        assertEq(uint8(resolved), uint8(Agora402Escrow.EscrowState.Resolved));
+        (,,,,, PayCrowEscrow.EscrowState resolved,) = escrow.getEscrow(escrowId);
+        assertEq(uint8(resolved), uint8(PayCrowEscrow.EscrowState.Resolved));
     }
 
     function test_settleToEscrow_emitsEvent() public {
         vm.prank(facilitator);
         vm.expectEmit(true, true, true, true);
-        emit Agora402EscrowRouter.SettledToEscrow(0, buyer, seller, TEN_USDC, SERVICE_HASH);
+        emit PayCrowEscrowRouter.SettledToEscrow(0, buyer, seller, TEN_USDC, SERVICE_HASH);
         router.settleToEscrow(
             buyer, TEN_USDC, 0, type(uint256).max,
             keccak256("nonce1"), 27, bytes32(0), bytes32(0),
@@ -453,11 +453,11 @@ contract Agora402EscrowRouterTest is Test {
         );
 
         // 2. Verify escrow state
-        (address b, address s, uint256 amt,,, Agora402Escrow.EscrowState state,) = escrow.getEscrow(escrowId);
+        (address b, address s, uint256 amt,,, PayCrowEscrow.EscrowState state,) = escrow.getEscrow(escrowId);
         assertEq(b, buyer);
         assertEq(s, seller);
         assertEq(amt, amount);
-        assertEq(uint8(state), uint8(Agora402Escrow.EscrowState.Funded));
+        assertEq(uint8(state), uint8(PayCrowEscrow.EscrowState.Funded));
 
         // 3. Buyer releases (delivery confirmed)
         vm.prank(buyer);

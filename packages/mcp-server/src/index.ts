@@ -111,11 +111,15 @@ const { registerX402Tools } = await import("./tools/x402.js");
 
 const server = new McpServer({
   name: "paycrow",
-  version: "0.4.0",
+  version: "1.0.0",
 });
 
-registerEscrowTools(server);
+// Trust tools always work (read-only, no wallet needed)
 registerTrustTools(server);
+
+// Escrow + payment tools need PRIVATE_KEY — register them but they'll
+// return helpful errors if no wallet is configured
+registerEscrowTools(server);
 registerX402Tools(server);
 
 const transport = new StdioServerTransport();

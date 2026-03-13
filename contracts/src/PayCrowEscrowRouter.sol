@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Agora402Escrow} from "./Agora402Escrow.sol";
+import {PayCrowEscrow} from "./PayCrowEscrow.sol";
 
 /// @title IERC20WithAuthorization
 /// @notice Interface for USDC's EIP-3009 transferWithAuthorization
@@ -22,9 +22,9 @@ interface IERC20WithAuthorization is IERC20 {
     ) external;
 }
 
-/// @title Agora402EscrowRouter
-/// @notice Atomically settles x402 EIP-3009 payments into Agora402Escrow.
-///         Used by the Agora402 x402 facilitator as the settlement layer.
+/// @title PayCrowEscrowRouter
+/// @notice Atomically settles x402 EIP-3009 payments into PayCrowEscrow.
+///         Used by the PayCrow x402 facilitator as the settlement layer.
 ///
 /// Flow:
 ///   1. x402 client signs EIP-3009 transferWithAuthorization(from=client, to=router, value)
@@ -34,11 +34,11 @@ interface IERC20WithAuthorization is IERC20 {
 ///   5. Client is the escrow buyer — can release/dispute directly via MCP server
 ///
 /// @dev Zero seller-side changes. Sellers receive USDC on release, same as direct x402.
-contract Agora402EscrowRouter is ReentrancyGuard {
+contract PayCrowEscrowRouter is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     IERC20WithAuthorization public immutable usdc;
-    Agora402Escrow public immutable escrow;
+    PayCrowEscrow public immutable escrow;
 
     event SettledToEscrow(
         uint256 indexed escrowId,
@@ -52,14 +52,14 @@ contract Agora402EscrowRouter is ReentrancyGuard {
 
     constructor(address _usdc, address _escrow) {
         usdc = IERC20WithAuthorization(_usdc);
-        escrow = Agora402Escrow(_escrow);
+        escrow = PayCrowEscrow(_escrow);
 
         // Max-approve the escrow contract once. Router never holds USDC
         // beyond the scope of a single transaction.
         IERC20(_usdc).approve(_escrow, type(uint256).max);
     }
 
-    /// @notice Atomically settle an x402 payment into an Agora402 escrow.
+    /// @notice Atomically settle an x402 payment into an PayCrow escrow.
     /// @param from The x402 client (buyer) who signed the EIP-3009 authorization
     /// @param value Amount of USDC authorized (must match escrow amount)
     /// @param validAfter EIP-3009 time constraint

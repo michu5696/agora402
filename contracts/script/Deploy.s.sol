@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
-import {Agora402Escrow} from "../src/Agora402Escrow.sol";
+import {PayCrowEscrow} from "../src/PayCrowEscrow.sol";
 
 contract DeployScript is Script {
     // Base Sepolia USDC address
@@ -18,14 +18,14 @@ contract DeployScript is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        Agora402Escrow escrow = new Agora402Escrow(
+        PayCrowEscrow escrow = new PayCrowEscrow(
             BASE_SEPOLIA_USDC,
             arbiter,
             treasury,
             DEFAULT_FEE_BPS
         );
 
-        console.log("Agora402Escrow deployed at:", address(escrow));
+        console.log("PayCrowEscrow deployed at:", address(escrow));
         console.log("USDC:", BASE_SEPOLIA_USDC);
         console.log("Arbiter:", arbiter);
         console.log("Treasury:", treasury);

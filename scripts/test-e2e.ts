@@ -1,6 +1,6 @@
 /**
  * End-to-end test: simulate an autonomous agent discovering and paying
- * for Agora402's trust score API using the x402 protocol.
+ * for PayCrow's trust score API using the x402 protocol.
  *
  * Usage:
  *   EVM_PRIVATE_KEY=0x... npx tsx scripts/test-e2e.ts [address]
@@ -27,7 +27,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("\n=== Agora402 End-to-End Test ===\n");
+  console.log("\n=== PayCrow End-to-End Test ===\n");
 
   // ── Step 1: Discovery ──
   console.log("1. Discovering services at", TRUST_API);

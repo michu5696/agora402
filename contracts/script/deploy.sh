@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy Agora402Escrow to Base Sepolia
+# Deploy PayCrowEscrow to Base Sepolia
 # Usage: ./deploy.sh
 #
 # Required environment variables (set in ../.env):
@@ -31,7 +31,7 @@ for var in PRIVATE_KEY ARBITER_ADDRESS TREASURY_ADDRESS; do
   fi
 done
 
-echo "=== Agora402 Deployment ==="
+echo "=== PayCrow Deployment ==="
 echo "Chain:    Base Sepolia"
 echo "RPC:      $RPC_URL"
 echo "Arbiter:  $ARBITER_ADDRESS"

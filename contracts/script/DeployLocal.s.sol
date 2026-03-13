@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
-import {Agora402Escrow} from "../src/Agora402Escrow.sol";
+import {PayCrowEscrow} from "../src/PayCrowEscrow.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @notice Mock USDC for local testing (6 decimals, mintable)
@@ -35,13 +35,13 @@ contract DeployLocalScript is Script {
         console.log("MockUSDC deployed at:", address(usdc));
 
         // Deploy escrow (deployer is arbiter + treasury for testing)
-        Agora402Escrow escrow = new Agora402Escrow(
+        PayCrowEscrow escrow = new PayCrowEscrow(
             address(usdc),
             deployer,  // arbiter
             deployer,  // treasury
             DEFAULT_FEE_BPS
         );
-        console.log("Agora402Escrow deployed at:", address(escrow));
+        console.log("PayCrowEscrow deployed at:", address(escrow));
 
         // Mint USDC to deployer
         usdc.mint(deployer, MINT_AMOUNT);

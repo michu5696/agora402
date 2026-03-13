@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-echo "=== Agora402 Wallet Setup ==="
+echo "=== PayCrow Wallet Setup ==="
 echo ""
 
 # Generate wallet

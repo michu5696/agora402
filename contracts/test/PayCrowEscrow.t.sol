@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
-import {Agora402Escrow} from "../src/Agora402Escrow.sol";
+import {PayCrowEscrow} from "../src/PayCrowEscrow.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @dev Mock USDC token for testing (6 decimals like real USDC)
@@ -18,8 +18,8 @@ contract MockUSDC is ERC20 {
     }
 }
 
-contract Agora402EscrowTest is Test {
-    Agora402Escrow public escrow;
+contract PayCrowEscrowTest is Test {
+    PayCrowEscrow public escrow;
     MockUSDC public usdc;
 
     address public owner = address(this);
@@ -39,7 +39,7 @@ contract Agora402EscrowTest is Test {
 
     function setUp() public {
         usdc = new MockUSDC();
-        escrow = new Agora402Escrow(address(usdc), arbiter, treasuryAddr, DEFAULT_FEE_BPS);
+        escrow = new PayCrowEscrow(address(usdc), arbiter, treasuryAddr, DEFAULT_FEE_BPS);
 
         // Fund buyer with USDC
         usdc.mint(buyer, 1000 * ONE_USDC);
@@ -61,23 +61,23 @@ contract Agora402EscrowTest is Test {
     }
 
     function test_constructor_revertsOnZeroUsdc() public {
-        vm.expectRevert(Agora402Escrow.ZeroAddress.selector);
-        new Agora402Escrow(address(0), arbiter, treasuryAddr, DEFAULT_FEE_BPS);
+        vm.expectRevert(PayCrowEscrow.ZeroAddress.selector);
+        new PayCrowEscrow(address(0), arbiter, treasuryAddr, DEFAULT_FEE_BPS);
     }
 
     function test_constructor_revertsOnZeroArbiter() public {
-        vm.expectRevert(Agora402Escrow.ZeroAddress.selector);
-        new Agora402Escrow(address(usdc), address(0), treasuryAddr, DEFAULT_FEE_BPS);
+        vm.expectRevert(PayCrowEscrow.ZeroAddress.selector);
+        new PayCrowEscrow(address(usdc), address(0), treasuryAddr, DEFAULT_FEE_BPS);
     }
 
     function test_constructor_revertsOnZeroTreasury() public {
-        vm.expectRevert(Agora402Escrow.ZeroAddress.selector);
-        new Agora402Escrow(address(usdc), arbiter, address(0), DEFAULT_FEE_BPS);
+        vm.expectRevert(PayCrowEscrow.ZeroAddress.selector);
+        new PayCrowEscrow(address(usdc), arbiter, address(0), DEFAULT_FEE_BPS);
     }
 
     function test_constructor_revertsOnFeeTooHigh() public {
-        vm.expectRevert(Agora402Escrow.FeeTooHigh.selector);
-        new Agora402Escrow(address(usdc), arbiter, treasuryAddr, 501);
+        vm.expectRevert(PayCrowEscrow.FeeTooHigh.selector);
+        new PayCrowEscrow(address(usdc), arbiter, treasuryAddr, 501);
     }
 
     // ─── createAndFund Tests ─────────────────────────────────────────────
@@ -92,7 +92,7 @@ contract Agora402EscrowTest is Test {
         (
             address b, address s, uint256 amt,
             uint256 createdAt, uint256 expiresAt,
-            Agora402Escrow.EscrowState state, bytes32 sHash
+            PayCrowEscrow.EscrowState state, bytes32 sHash
         ) = escrow.getEscrow(id);
 
         assertEq(b, buyer);
@@ -100,7 +100,7 @@ contract Agora402EscrowTest is Test {
         assertEq(amt, TEN_USDC);
         assertEq(createdAt, block.timestamp);
         assertEq(expiresAt, block.timestamp + DEFAULT_TIMELOCK);
-        assertEq(uint8(state), uint8(Agora402Escrow.EscrowState.Funded));
+        assertEq(uint8(state), uint8(PayCrowEscrow.EscrowState.Funded));
         assertEq(sHash, SERVICE_HASH);
 
         // USDC transferred to contract
@@ -111,13 +111,13 @@ contract Agora402EscrowTest is Test {
         vm.prank(buyer);
 
         vm.expectEmit(true, true, true, true);
-        emit Agora402Escrow.EscrowCreated(
+        emit PayCrowEscrow.EscrowCreated(
             0, buyer, seller, TEN_USDC,
             block.timestamp + DEFAULT_TIMELOCK, SERVICE_HASH
         );
 
         vm.expectEmit(true, false, false, true);
-        emit Agora402Escrow.EscrowFunded(0, TEN_USDC);
+        emit PayCrowEscrow.EscrowFunded(0, TEN_USDC);
 
         escrow.createAndFund(seller, TEN_USDC, DEFAULT_TIMELOCK, SERVICE_HASH);
     }
@@ -134,37 +134,37 @@ contract Agora402EscrowTest is Test {
 
     function test_createAndFund_revertsOnZeroSeller() public {
         vm.prank(buyer);
-        vm.expectRevert(Agora402Escrow.ZeroAddress.selector);
+        vm.expectRevert(PayCrowEscrow.ZeroAddress.selector);
         escrow.createAndFund(address(0), TEN_USDC, DEFAULT_TIMELOCK, SERVICE_HASH);
     }
 
     function test_createAndFund_revertsOnBuyerIsSeller() public {
         vm.prank(buyer);
-        vm.expectRevert(Agora402Escrow.BuyerIsSeller.selector);
+        vm.expectRevert(PayCrowEscrow.BuyerIsSeller.selector);
         escrow.createAndFund(buyer, TEN_USDC, DEFAULT_TIMELOCK, SERVICE_HASH);
     }
 
     function test_createAndFund_revertsOnAmountTooLow() public {
         vm.prank(buyer);
-        vm.expectRevert(Agora402Escrow.AmountTooLow.selector);
+        vm.expectRevert(PayCrowEscrow.AmountTooLow.selector);
         escrow.createAndFund(seller, 99_999, DEFAULT_TIMELOCK, SERVICE_HASH); // < $0.10
     }
 
     function test_createAndFund_revertsOnAmountTooHigh() public {
         vm.prank(buyer);
-        vm.expectRevert(Agora402Escrow.AmountTooHigh.selector);
+        vm.expectRevert(PayCrowEscrow.AmountTooHigh.selector);
         escrow.createAndFund(seller, HUNDRED_USDC + 1, DEFAULT_TIMELOCK, SERVICE_HASH);
     }
 
     function test_createAndFund_revertsOnTimelockTooShort() public {
         vm.prank(buyer);
-        vm.expectRevert(Agora402Escrow.TimelockTooShort.selector);
+        vm.expectRevert(PayCrowEscrow.TimelockTooShort.selector);
         escrow.createAndFund(seller, TEN_USDC, 4 minutes, SERVICE_HASH);
     }
 
     function test_createAndFund_revertsOnTimelockTooLong() public {
         vm.prank(buyer);
-        vm.expectRevert(Agora402Escrow.TimelockTooLong.selector);
+        vm.expectRevert(PayCrowEscrow.TimelockTooLong.selector);
         escrow.createAndFund(seller, TEN_USDC, 31 days, SERVICE_HASH);
     }
 
@@ -213,8 +213,8 @@ contract Agora402EscrowTest is Test {
         uint256 expectedFee = TEN_USDC * DEFAULT_FEE_BPS / 10_000;
         uint256 expectedSeller = TEN_USDC - expectedFee;
 
-        (, , , , , Agora402Escrow.EscrowState state, ) = escrow.getEscrow(id);
-        assertEq(uint8(state), uint8(Agora402Escrow.EscrowState.Released));
+        (, , , , , PayCrowEscrow.EscrowState state, ) = escrow.getEscrow(id);
+        assertEq(uint8(state), uint8(PayCrowEscrow.EscrowState.Released));
         assertEq(usdc.balanceOf(seller), sellerBefore + expectedSeller);
         assertEq(usdc.balanceOf(treasuryAddr), treasuryBefore + expectedFee);
         assertEq(usdc.balanceOf(address(escrow)), 0);
@@ -230,7 +230,7 @@ contract Agora402EscrowTest is Test {
 
         vm.prank(buyer);
         vm.expectEmit(true, false, false, true);
-        emit Agora402Escrow.EscrowReleased(id, expectedSeller);
+        emit PayCrowEscrow.EscrowReleased(id, expectedSeller);
         escrow.release(id);
     }
 
@@ -239,7 +239,7 @@ contract Agora402EscrowTest is Test {
         uint256 id = escrow.createAndFund(seller, TEN_USDC, DEFAULT_TIMELOCK, SERVICE_HASH);
 
         vm.prank(attacker);
-        vm.expectRevert(Agora402Escrow.NotBuyer.selector);
+        vm.expectRevert(PayCrowEscrow.NotBuyer.selector);
         escrow.release(id);
     }
 
@@ -253,9 +253,9 @@ contract Agora402EscrowTest is Test {
         vm.prank(buyer);
         vm.expectRevert(
             abi.encodeWithSelector(
-                Agora402Escrow.InvalidState.selector,
-                Agora402Escrow.EscrowState.Released,
-                Agora402Escrow.EscrowState.Funded
+                PayCrowEscrow.InvalidState.selector,
+                PayCrowEscrow.EscrowState.Released,
+                PayCrowEscrow.EscrowState.Funded
             )
         );
         escrow.release(id); // Second release fails
@@ -270,8 +270,8 @@ contract Agora402EscrowTest is Test {
         vm.prank(buyer);
         escrow.dispute(id);
 
-        (, , , , , Agora402Escrow.EscrowState state, ) = escrow.getEscrow(id);
-        assertEq(uint8(state), uint8(Agora402Escrow.EscrowState.Disputed));
+        (, , , , , PayCrowEscrow.EscrowState state, ) = escrow.getEscrow(id);
+        assertEq(uint8(state), uint8(PayCrowEscrow.EscrowState.Disputed));
         // Funds stay in contract
         assertEq(usdc.balanceOf(address(escrow)), TEN_USDC);
     }
@@ -282,7 +282,7 @@ contract Agora402EscrowTest is Test {
 
         vm.prank(buyer);
         vm.expectEmit(true, true, false, false);
-        emit Agora402Escrow.EscrowDisputed(id, buyer);
+        emit PayCrowEscrow.EscrowDisputed(id, buyer);
         escrow.dispute(id);
     }
 
@@ -291,7 +291,7 @@ contract Agora402EscrowTest is Test {
         uint256 id = escrow.createAndFund(seller, TEN_USDC, DEFAULT_TIMELOCK, SERVICE_HASH);
 
         vm.prank(seller);
-        vm.expectRevert(Agora402Escrow.NotBuyer.selector);
+        vm.expectRevert(PayCrowEscrow.NotBuyer.selector);
         escrow.dispute(id);
     }
 
@@ -305,9 +305,9 @@ contract Agora402EscrowTest is Test {
         vm.prank(buyer);
         vm.expectRevert(
             abi.encodeWithSelector(
-                Agora402Escrow.InvalidState.selector,
-                Agora402Escrow.EscrowState.Released,
-                Agora402Escrow.EscrowState.Funded
+                PayCrowEscrow.InvalidState.selector,
+                PayCrowEscrow.EscrowState.Released,
+                PayCrowEscrow.EscrowState.Funded
             )
         );
         escrow.dispute(id);
@@ -329,8 +329,8 @@ contract Agora402EscrowTest is Test {
         vm.prank(arbiter);
         escrow.resolve(id, distributable, 0);
 
-        (, , , , , Agora402Escrow.EscrowState state, ) = escrow.getEscrow(id);
-        assertEq(uint8(state), uint8(Agora402Escrow.EscrowState.Resolved));
+        (, , , , , PayCrowEscrow.EscrowState state, ) = escrow.getEscrow(id);
+        assertEq(uint8(state), uint8(PayCrowEscrow.EscrowState.Resolved));
         assertEq(usdc.balanceOf(buyer), buyerBefore + distributable);
         assertEq(usdc.balanceOf(seller), 0);
         assertEq(usdc.balanceOf(treasuryAddr), fee);
@@ -389,7 +389,7 @@ contract Agora402EscrowTest is Test {
 
         vm.prank(arbiter);
         vm.expectEmit(true, false, false, true);
-        emit Agora402Escrow.EscrowResolved(id, buyerAmt, sellerAmt);
+        emit PayCrowEscrow.EscrowResolved(id, buyerAmt, sellerAmt);
         escrow.resolve(id, buyerAmt, sellerAmt);
     }
 
@@ -404,7 +404,7 @@ contract Agora402EscrowTest is Test {
         uint256 distributable = TEN_USDC - fee;
 
         vm.prank(attacker);
-        vm.expectRevert(Agora402Escrow.NotArbiter.selector);
+        vm.expectRevert(PayCrowEscrow.NotArbiter.selector);
         escrow.resolve(id, distributable, 0);
     }
 
@@ -418,9 +418,9 @@ contract Agora402EscrowTest is Test {
         vm.prank(arbiter);
         vm.expectRevert(
             abi.encodeWithSelector(
-                Agora402Escrow.InvalidState.selector,
-                Agora402Escrow.EscrowState.Funded,
-                Agora402Escrow.EscrowState.Disputed
+                PayCrowEscrow.InvalidState.selector,
+                PayCrowEscrow.EscrowState.Funded,
+                PayCrowEscrow.EscrowState.Disputed
             )
         );
         escrow.resolve(id, distributable, 0);
@@ -437,7 +437,7 @@ contract Agora402EscrowTest is Test {
         uint256 distributable = TEN_USDC - fee;
 
         vm.prank(arbiter);
-        vm.expectRevert(Agora402Escrow.SplitExceedsAmount.selector);
+        vm.expectRevert(PayCrowEscrow.SplitExceedsAmount.selector);
         escrow.resolve(id, distributable, 1); // Sum exceeds distributable
     }
 
@@ -452,8 +452,8 @@ contract Agora402EscrowTest is Test {
 
         escrow.markExpired(id);
 
-        (, , , , , Agora402Escrow.EscrowState state, ) = escrow.getEscrow(id);
-        assertEq(uint8(state), uint8(Agora402Escrow.EscrowState.Expired));
+        (, , , , , PayCrowEscrow.EscrowState state, ) = escrow.getEscrow(id);
+        assertEq(uint8(state), uint8(PayCrowEscrow.EscrowState.Expired));
     }
 
     function test_markExpired_revertsBeforeExpiry() public {
@@ -462,7 +462,7 @@ contract Agora402EscrowTest is Test {
 
         vm.warp(block.timestamp + DEFAULT_TIMELOCK - 1);
 
-        vm.expectRevert(Agora402Escrow.NotExpired.selector);
+        vm.expectRevert(PayCrowEscrow.NotExpired.selector);
         escrow.markExpired(id);
     }
 
@@ -487,8 +487,8 @@ contract Agora402EscrowTest is Test {
 
         escrow.refund(id);
 
-        (, , , , , Agora402Escrow.EscrowState state, ) = escrow.getEscrow(id);
-        assertEq(uint8(state), uint8(Agora402Escrow.EscrowState.Refunded));
+        (, , , , , PayCrowEscrow.EscrowState state, ) = escrow.getEscrow(id);
+        assertEq(uint8(state), uint8(PayCrowEscrow.EscrowState.Refunded));
         assertEq(usdc.balanceOf(buyer), buyerBefore + TEN_USDC);
         assertEq(usdc.balanceOf(address(escrow)), 0);
     }
@@ -501,7 +501,7 @@ contract Agora402EscrowTest is Test {
         escrow.markExpired(id);
 
         vm.expectEmit(true, false, false, true);
-        emit Agora402Escrow.EscrowRefunded(id, TEN_USDC);
+        emit PayCrowEscrow.EscrowRefunded(id, TEN_USDC);
         escrow.refund(id);
     }
 
@@ -511,9 +511,9 @@ contract Agora402EscrowTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                Agora402Escrow.InvalidState.selector,
-                Agora402Escrow.EscrowState.Funded,
-                Agora402Escrow.EscrowState.Expired
+                PayCrowEscrow.InvalidState.selector,
+                PayCrowEscrow.EscrowState.Funded,
+                PayCrowEscrow.EscrowState.Expired
             )
         );
         escrow.refund(id);
@@ -553,18 +553,18 @@ contract Agora402EscrowTest is Test {
     function test_setArbiter_emitsEvent() public {
         address newArbiter = makeAddr("newArbiter");
         vm.expectEmit(true, true, false, false);
-        emit Agora402Escrow.ArbiterUpdated(arbiter, newArbiter);
+        emit PayCrowEscrow.ArbiterUpdated(arbiter, newArbiter);
         escrow.setArbiter(newArbiter);
     }
 
     function test_setArbiter_revertsIfNotOwner() public {
         vm.prank(attacker);
-        vm.expectRevert(Agora402Escrow.NotOwner.selector);
+        vm.expectRevert(PayCrowEscrow.NotOwner.selector);
         escrow.setArbiter(makeAddr("newArbiter"));
     }
 
     function test_setArbiter_revertsOnZero() public {
-        vm.expectRevert(Agora402Escrow.ZeroAddress.selector);
+        vm.expectRevert(PayCrowEscrow.ZeroAddress.selector);
         escrow.setArbiter(address(0));
     }
 
@@ -576,7 +576,7 @@ contract Agora402EscrowTest is Test {
 
     function test_transferOwnership_revertsIfNotOwner() public {
         vm.prank(attacker);
-        vm.expectRevert(Agora402Escrow.NotOwner.selector);
+        vm.expectRevert(PayCrowEscrow.NotOwner.selector);
         escrow.transferOwnership(makeAddr("newOwner"));
     }
 
@@ -589,7 +589,7 @@ contract Agora402EscrowTest is Test {
 
     function test_pause_revertsIfNotOwner() public {
         vm.prank(attacker);
-        vm.expectRevert(Agora402Escrow.NotOwner.selector);
+        vm.expectRevert(PayCrowEscrow.NotOwner.selector);
         escrow.pause();
     }
 
@@ -608,8 +608,8 @@ contract Agora402EscrowTest is Test {
         uint256 fee = TEN_USDC * DEFAULT_FEE_BPS / 10_000;
 
         // Verify final state
-        (, , , , , Agora402Escrow.EscrowState state, ) = escrow.getEscrow(id);
-        assertEq(uint8(state), uint8(Agora402Escrow.EscrowState.Released));
+        (, , , , , PayCrowEscrow.EscrowState state, ) = escrow.getEscrow(id);
+        assertEq(uint8(state), uint8(PayCrowEscrow.EscrowState.Released));
         assertEq(usdc.balanceOf(seller), TEN_USDC - fee);
         assertEq(usdc.balanceOf(treasuryAddr), fee);
     }
@@ -671,11 +671,11 @@ contract Agora402EscrowTest is Test {
         vm.prank(arbiter);
         escrow.resolve(id1, distributable1, 0);
 
-        (, , , , , Agora402Escrow.EscrowState state0, ) = escrow.getEscrow(id0);
-        (, , , , , Agora402Escrow.EscrowState state1, ) = escrow.getEscrow(id1);
+        (, , , , , PayCrowEscrow.EscrowState state0, ) = escrow.getEscrow(id0);
+        (, , , , , PayCrowEscrow.EscrowState state1, ) = escrow.getEscrow(id1);
 
-        assertEq(uint8(state0), uint8(Agora402Escrow.EscrowState.Released));
-        assertEq(uint8(state1), uint8(Agora402Escrow.EscrowState.Resolved));
+        assertEq(uint8(state0), uint8(PayCrowEscrow.EscrowState.Released));
+        assertEq(uint8(state1), uint8(PayCrowEscrow.EscrowState.Resolved));
     }
 
     // ─── Fuzz Tests ──────────────────────────────────────────────────────
@@ -733,12 +733,12 @@ contract Agora402EscrowTest is Test {
         vm.warp(block.timestamp + warpTime);
 
         if (warpTime < DEFAULT_TIMELOCK) {
-            vm.expectRevert(Agora402Escrow.NotExpired.selector);
+            vm.expectRevert(PayCrowEscrow.NotExpired.selector);
             escrow.markExpired(id);
         } else {
             escrow.markExpired(id);
-            (, , , , , Agora402Escrow.EscrowState state, ) = escrow.getEscrow(id);
-            assertEq(uint8(state), uint8(Agora402Escrow.EscrowState.Expired));
+            (, , , , , PayCrowEscrow.EscrowState state, ) = escrow.getEscrow(id);
+            assertEq(uint8(state), uint8(PayCrowEscrow.EscrowState.Expired));
         }
     }
 
@@ -807,7 +807,7 @@ contract Agora402EscrowTest is Test {
 
     function test_zeroFee_noTreasuryTransfer() public {
         // Deploy a zero-fee escrow
-        Agora402Escrow zeroFeeEscrow = new Agora402Escrow(address(usdc), arbiter, treasuryAddr, 0);
+        PayCrowEscrow zeroFeeEscrow = new PayCrowEscrow(address(usdc), arbiter, treasuryAddr, 0);
         usdc.mint(buyer, TEN_USDC);
         vm.prank(buyer);
         usdc.approve(address(zeroFeeEscrow), TEN_USDC);
@@ -830,13 +830,13 @@ contract Agora402EscrowTest is Test {
     }
 
     function test_setFeeBps_revertsIfTooHigh() public {
-        vm.expectRevert(Agora402Escrow.FeeTooHigh.selector);
+        vm.expectRevert(PayCrowEscrow.FeeTooHigh.selector);
         escrow.setFeeBps(501);
     }
 
     function test_setFeeBps_revertsIfNotOwner() public {
         vm.prank(attacker);
-        vm.expectRevert(Agora402Escrow.NotOwner.selector);
+        vm.expectRevert(PayCrowEscrow.NotOwner.selector);
         escrow.setFeeBps(100);
     }
 
@@ -847,7 +847,7 @@ contract Agora402EscrowTest is Test {
     }
 
     function test_setTreasury_revertsOnZero() public {
-        vm.expectRevert(Agora402Escrow.ZeroAddress.selector);
+        vm.expectRevert(PayCrowEscrow.ZeroAddress.selector);
         escrow.setTreasury(address(0));
     }
 

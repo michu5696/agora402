@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {Agora402Escrow} from "../src/Agora402Escrow.sol";
-import {Agora402Reputation} from "../src/Agora402Reputation.sol";
+import {PayCrowEscrow} from "../src/PayCrowEscrow.sol";
+import {PayCrowReputation} from "../src/PayCrowReputation.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @dev Mock USDC for reputation tests
@@ -21,8 +21,8 @@ contract MockUSDC is ERC20 {
 
 // ─── Standalone Reputation Contract Tests ───────────────────────────────────
 
-contract Agora402ReputationTest is Test {
-    Agora402Reputation public rep;
+contract PayCrowReputationTest is Test {
+    PayCrowReputation public rep;
 
     address public owner = address(this);
     address public escrowContract = makeAddr("escrow");
@@ -31,7 +31,7 @@ contract Agora402ReputationTest is Test {
     address public attacker = makeAddr("attacker");
 
     function setUp() public {
-        rep = new Agora402Reputation();
+        rep = new PayCrowReputation();
         rep.setEscrowContract(escrowContract);
     }
 
@@ -42,7 +42,7 @@ contract Agora402ReputationTest is Test {
     }
 
     function test_constructor_escrowContractInitiallyZero() public {
-        Agora402Reputation fresh = new Agora402Reputation();
+        PayCrowReputation fresh = new PayCrowReputation();
         assertEq(fresh.escrowContract(), address(0));
     }
 
@@ -53,18 +53,18 @@ contract Agora402ReputationTest is Test {
     function test_setEscrowContract_emitsEvent() public {
         address newEscrow = makeAddr("newEscrow");
         vm.expectEmit(true, true, false, false);
-        emit Agora402Reputation.EscrowContractUpdated(escrowContract, newEscrow);
+        emit PayCrowReputation.EscrowContractUpdated(escrowContract, newEscrow);
         rep.setEscrowContract(newEscrow);
     }
 
     function test_setEscrowContract_revertsIfNotOwner() public {
         vm.prank(attacker);
-        vm.expectRevert(Agora402Reputation.NotOwner.selector);
+        vm.expectRevert(PayCrowReputation.NotOwner.selector);
         rep.setEscrowContract(makeAddr("new"));
     }
 
     function test_setEscrowContract_revertsOnZeroAddress() public {
-        vm.expectRevert(Agora402Reputation.ZeroAddress.selector);
+        vm.expectRevert(PayCrowReputation.ZeroAddress.selector);
         rep.setEscrowContract(address(0));
     }
 
@@ -77,18 +77,18 @@ contract Agora402ReputationTest is Test {
     function test_transferOwnership_emitsEvent() public {
         address newOwner = makeAddr("newOwner");
         vm.expectEmit(true, true, false, false);
-        emit Agora402Reputation.OwnerUpdated(owner, newOwner);
+        emit PayCrowReputation.OwnerUpdated(owner, newOwner);
         rep.transferOwnership(newOwner);
     }
 
     function test_transferOwnership_revertsIfNotOwner() public {
         vm.prank(attacker);
-        vm.expectRevert(Agora402Reputation.NotOwner.selector);
+        vm.expectRevert(PayCrowReputation.NotOwner.selector);
         rep.transferOwnership(attacker);
     }
 
     function test_transferOwnership_revertsOnZeroAddress() public {
-        vm.expectRevert(Agora402Reputation.ZeroAddress.selector);
+        vm.expectRevert(PayCrowReputation.ZeroAddress.selector);
         rep.transferOwnership(address(0));
     }
 
@@ -96,15 +96,15 @@ contract Agora402ReputationTest is Test {
 
     function test_recordOutcome_revertsIfNotEscrow() public {
         vm.prank(attacker);
-        vm.expectRevert(Agora402Reputation.NotEscrowContract.selector);
-        rep.recordOutcome(agent1, agent2, 1_000_000, 0, Agora402Reputation.Outcome.Completed);
+        vm.expectRevert(PayCrowReputation.NotEscrowContract.selector);
+        rep.recordOutcome(agent1, agent2, 1_000_000, 0, PayCrowReputation.Outcome.Completed);
     }
 
     // ─── recordOutcome: Completed ───────────────────────────────────────
 
     function test_recordOutcome_completed_updatesBothParties() public {
         vm.prank(escrowContract);
-        rep.recordOutcome(agent1, agent2, 10_000_000, 0, Agora402Reputation.Outcome.Completed);
+        rep.recordOutcome(agent1, agent2, 10_000_000, 0, PayCrowReputation.Outcome.Completed);
 
         // Agent1 (buyer/client)
         (uint64 c1, uint64 d1, uint64 r1, uint64 p1, uint64 cl1, uint256 v1,,) = rep.getReputation(agent1);
@@ -128,17 +128,17 @@ contract Agora402ReputationTest is Test {
     function test_recordOutcome_completed_emitsEvents() public {
         vm.prank(escrowContract);
         vm.expectEmit(true, true, false, true);
-        emit Agora402Reputation.ReputationUpdated(agent1, Agora402Reputation.Outcome.Completed, 10_000_000, 0, false);
+        emit PayCrowReputation.ReputationUpdated(agent1, PayCrowReputation.Outcome.Completed, 10_000_000, 0, false);
         vm.expectEmit(true, true, false, true);
-        emit Agora402Reputation.ReputationUpdated(agent2, Agora402Reputation.Outcome.Completed, 10_000_000, 0, true);
-        rep.recordOutcome(agent1, agent2, 10_000_000, 0, Agora402Reputation.Outcome.Completed);
+        emit PayCrowReputation.ReputationUpdated(agent2, PayCrowReputation.Outcome.Completed, 10_000_000, 0, true);
+        rep.recordOutcome(agent1, agent2, 10_000_000, 0, PayCrowReputation.Outcome.Completed);
     }
 
     // ─── recordOutcome: Disputed ────────────────────────────────────────
 
     function test_recordOutcome_disputed_updatesCounters() public {
         vm.prank(escrowContract);
-        rep.recordOutcome(agent1, agent2, 5_000_000, 1, Agora402Reputation.Outcome.Disputed);
+        rep.recordOutcome(agent1, agent2, 5_000_000, 1, PayCrowReputation.Outcome.Disputed);
 
         (uint64 c1, uint64 d1, uint64 r1,,,,,) = rep.getReputation(agent1);
         assertEq(c1, 0);
@@ -155,7 +155,7 @@ contract Agora402ReputationTest is Test {
 
     function test_recordOutcome_refunded_updatesCounters() public {
         vm.prank(escrowContract);
-        rep.recordOutcome(agent1, agent2, 5_000_000, 2, Agora402Reputation.Outcome.Refunded);
+        rep.recordOutcome(agent1, agent2, 5_000_000, 2, PayCrowReputation.Outcome.Refunded);
 
         (uint64 c1, uint64 d1, uint64 r1,,,,,) = rep.getReputation(agent1);
         assertEq(c1, 0);
@@ -172,10 +172,10 @@ contract Agora402ReputationTest is Test {
 
     function test_multipleOutcomes_accumulate() public {
         vm.startPrank(escrowContract);
-        rep.recordOutcome(agent1, agent2, 10_000_000, 0, Agora402Reputation.Outcome.Completed);
-        rep.recordOutcome(agent1, agent2, 5_000_000, 1, Agora402Reputation.Outcome.Completed);
-        rep.recordOutcome(agent1, agent2, 3_000_000, 2, Agora402Reputation.Outcome.Disputed);
-        rep.recordOutcome(agent1, agent2, 2_000_000, 3, Agora402Reputation.Outcome.Refunded);
+        rep.recordOutcome(agent1, agent2, 10_000_000, 0, PayCrowReputation.Outcome.Completed);
+        rep.recordOutcome(agent1, agent2, 5_000_000, 1, PayCrowReputation.Outcome.Completed);
+        rep.recordOutcome(agent1, agent2, 3_000_000, 2, PayCrowReputation.Outcome.Disputed);
+        rep.recordOutcome(agent1, agent2, 2_000_000, 3, PayCrowReputation.Outcome.Refunded);
         vm.stopPrank();
 
         (uint64 c, uint64 d, uint64 r, uint64 p, uint64 cl, uint256 v,,) = rep.getReputation(agent1);
@@ -198,7 +198,7 @@ contract Agora402ReputationTest is Test {
     function test_firstSeen_setsOnFirstOutcome() public {
         vm.warp(1000);
         vm.prank(escrowContract);
-        rep.recordOutcome(agent1, agent2, 1_000_000, 0, Agora402Reputation.Outcome.Completed);
+        rep.recordOutcome(agent1, agent2, 1_000_000, 0, PayCrowReputation.Outcome.Completed);
 
         (,,,,,, uint256 firstSeen, uint256 lastSeen) = rep.getReputation(agent1);
         assertEq(firstSeen, 1000);
@@ -208,11 +208,11 @@ contract Agora402ReputationTest is Test {
     function test_firstSeen_doesNotChangeOnSubsequent() public {
         vm.warp(1000);
         vm.prank(escrowContract);
-        rep.recordOutcome(agent1, agent2, 1_000_000, 0, Agora402Reputation.Outcome.Completed);
+        rep.recordOutcome(agent1, agent2, 1_000_000, 0, PayCrowReputation.Outcome.Completed);
 
         vm.warp(2000);
         vm.prank(escrowContract);
-        rep.recordOutcome(agent1, agent2, 1_000_000, 1, Agora402Reputation.Outcome.Completed);
+        rep.recordOutcome(agent1, agent2, 1_000_000, 1, PayCrowReputation.Outcome.Completed);
 
         (,,,,,, uint256 firstSeen, uint256 lastSeen) = rep.getReputation(agent1);
         assertEq(firstSeen, 1000); // Unchanged
@@ -225,18 +225,18 @@ contract Agora402ReputationTest is Test {
         assertEq(rep.totalAddresses(), 0);
 
         vm.prank(escrowContract);
-        rep.recordOutcome(agent1, agent2, 1_000_000, 0, Agora402Reputation.Outcome.Completed);
+        rep.recordOutcome(agent1, agent2, 1_000_000, 0, PayCrowReputation.Outcome.Completed);
         assertEq(rep.totalAddresses(), 2); // Both buyer + seller are new
 
         // Same agents again — counter shouldn't increment
         vm.prank(escrowContract);
-        rep.recordOutcome(agent1, agent2, 1_000_000, 1, Agora402Reputation.Outcome.Completed);
+        rep.recordOutcome(agent1, agent2, 1_000_000, 1, PayCrowReputation.Outcome.Completed);
         assertEq(rep.totalAddresses(), 2); // Still 2
 
         // New agent
         address agent3 = makeAddr("agent3");
         vm.prank(escrowContract);
-        rep.recordOutcome(agent1, agent3, 1_000_000, 2, Agora402Reputation.Outcome.Completed);
+        rep.recordOutcome(agent1, agent3, 1_000_000, 2, PayCrowReputation.Outcome.Completed);
         assertEq(rep.totalAddresses(), 3); // agent1 + agent2 + agent3
     }
 
@@ -248,9 +248,9 @@ contract Agora402ReputationTest is Test {
 
     function test_getScore_returns100ForPerfectRecord() public {
         vm.startPrank(escrowContract);
-        rep.recordOutcome(agent1, agent2, 1_000_000, 0, Agora402Reputation.Outcome.Completed);
-        rep.recordOutcome(agent1, agent2, 1_000_000, 1, Agora402Reputation.Outcome.Completed);
-        rep.recordOutcome(agent1, agent2, 1_000_000, 2, Agora402Reputation.Outcome.Completed);
+        rep.recordOutcome(agent1, agent2, 1_000_000, 0, PayCrowReputation.Outcome.Completed);
+        rep.recordOutcome(agent1, agent2, 1_000_000, 1, PayCrowReputation.Outcome.Completed);
+        rep.recordOutcome(agent1, agent2, 1_000_000, 2, PayCrowReputation.Outcome.Completed);
         vm.stopPrank();
 
         assertEq(rep.getScore(agent1), 100);
@@ -259,8 +259,8 @@ contract Agora402ReputationTest is Test {
 
     function test_getScore_returns0ForAllDisputed() public {
         vm.startPrank(escrowContract);
-        rep.recordOutcome(agent1, agent2, 1_000_000, 0, Agora402Reputation.Outcome.Disputed);
-        rep.recordOutcome(agent1, agent2, 1_000_000, 1, Agora402Reputation.Outcome.Disputed);
+        rep.recordOutcome(agent1, agent2, 1_000_000, 0, PayCrowReputation.Outcome.Disputed);
+        rep.recordOutcome(agent1, agent2, 1_000_000, 1, PayCrowReputation.Outcome.Disputed);
         vm.stopPrank();
 
         assertEq(rep.getScore(agent1), 0);
@@ -268,7 +268,7 @@ contract Agora402ReputationTest is Test {
 
     function test_getScore_returns0ForAllRefunded() public {
         vm.startPrank(escrowContract);
-        rep.recordOutcome(agent1, agent2, 1_000_000, 0, Agora402Reputation.Outcome.Refunded);
+        rep.recordOutcome(agent1, agent2, 1_000_000, 0, PayCrowReputation.Outcome.Refunded);
         vm.stopPrank();
 
         assertEq(rep.getScore(agent1), 0);
@@ -277,11 +277,11 @@ contract Agora402ReputationTest is Test {
     function test_getScore_mixedRecord() public {
         vm.startPrank(escrowContract);
         // 3 completed, 1 disputed, 1 refunded = 3/5 = 60
-        rep.recordOutcome(agent1, agent2, 1_000_000, 0, Agora402Reputation.Outcome.Completed);
-        rep.recordOutcome(agent1, agent2, 1_000_000, 1, Agora402Reputation.Outcome.Completed);
-        rep.recordOutcome(agent1, agent2, 1_000_000, 2, Agora402Reputation.Outcome.Completed);
-        rep.recordOutcome(agent1, agent2, 1_000_000, 3, Agora402Reputation.Outcome.Disputed);
-        rep.recordOutcome(agent1, agent2, 1_000_000, 4, Agora402Reputation.Outcome.Refunded);
+        rep.recordOutcome(agent1, agent2, 1_000_000, 0, PayCrowReputation.Outcome.Completed);
+        rep.recordOutcome(agent1, agent2, 1_000_000, 1, PayCrowReputation.Outcome.Completed);
+        rep.recordOutcome(agent1, agent2, 1_000_000, 2, PayCrowReputation.Outcome.Completed);
+        rep.recordOutcome(agent1, agent2, 1_000_000, 3, PayCrowReputation.Outcome.Disputed);
+        rep.recordOutcome(agent1, agent2, 1_000_000, 4, PayCrowReputation.Outcome.Refunded);
         vm.stopPrank();
 
         assertEq(rep.getScore(agent1), 60); // 3/5 * 100
@@ -308,9 +308,9 @@ contract Agora402ReputationTest is Test {
     function test_agentAsBothProviderAndClient() public {
         vm.startPrank(escrowContract);
         // agent1 is buyer (client) of agent2
-        rep.recordOutcome(agent1, agent2, 5_000_000, 0, Agora402Reputation.Outcome.Completed);
+        rep.recordOutcome(agent1, agent2, 5_000_000, 0, PayCrowReputation.Outcome.Completed);
         // agent1 is seller (provider) to agent2
-        rep.recordOutcome(agent2, agent1, 3_000_000, 1, Agora402Reputation.Outcome.Completed);
+        rep.recordOutcome(agent2, agent1, 3_000_000, 1, PayCrowReputation.Outcome.Completed);
         vm.stopPrank();
 
         (uint64 c, uint64 d, uint64 r, uint64 p, uint64 cl, uint256 v,,) = rep.getReputation(agent1);
@@ -328,7 +328,7 @@ contract Agora402ReputationTest is Test {
         amount = bound(amount, 1, type(uint128).max); // reasonable range
 
         vm.prank(escrowContract);
-        rep.recordOutcome(agent1, agent2, amount, 0, Agora402Reputation.Outcome.Completed);
+        rep.recordOutcome(agent1, agent2, amount, 0, PayCrowReputation.Outcome.Completed);
 
         (,,,,,uint256 v,,) = rep.getReputation(agent1);
         assertEq(v, amount);
@@ -339,8 +339,8 @@ contract Agora402ReputationTest is Test {
         a2 = bound(a2, 1, type(uint128).max);
 
         vm.startPrank(escrowContract);
-        rep.recordOutcome(agent1, agent2, a1, 0, Agora402Reputation.Outcome.Completed);
-        rep.recordOutcome(agent1, agent2, a2, 1, Agora402Reputation.Outcome.Completed);
+        rep.recordOutcome(agent1, agent2, a1, 0, PayCrowReputation.Outcome.Completed);
+        rep.recordOutcome(agent1, agent2, a2, 1, PayCrowReputation.Outcome.Completed);
         vm.stopPrank();
 
         (,,,,,uint256 v,,) = rep.getReputation(agent1);
@@ -353,13 +353,13 @@ contract Agora402ReputationTest is Test {
 
         vm.startPrank(escrowContract);
         for (uint8 i = 0; i < completed; i++) {
-            rep.recordOutcome(agent1, agent2, 1_000_000, i, Agora402Reputation.Outcome.Completed);
+            rep.recordOutcome(agent1, agent2, 1_000_000, i, PayCrowReputation.Outcome.Completed);
         }
         for (uint8 i = 0; i < disputed; i++) {
-            rep.recordOutcome(agent1, agent2, 1_000_000, uint256(completed) + i, Agora402Reputation.Outcome.Disputed);
+            rep.recordOutcome(agent1, agent2, 1_000_000, uint256(completed) + i, PayCrowReputation.Outcome.Disputed);
         }
         for (uint8 i = 0; i < refunded; i++) {
-            rep.recordOutcome(agent1, agent2, 1_000_000, uint256(completed) + uint256(disputed) + i, Agora402Reputation.Outcome.Refunded);
+            rep.recordOutcome(agent1, agent2, 1_000_000, uint256(completed) + uint256(disputed) + i, PayCrowReputation.Outcome.Refunded);
         }
         vm.stopPrank();
 
@@ -371,8 +371,8 @@ contract Agora402ReputationTest is Test {
 // ─── Integration: Escrow + Reputation wired together ────────────────────────
 
 contract EscrowReputationIntegrationTest is Test {
-    Agora402Escrow public escrow;
-    Agora402Reputation public rep;
+    PayCrowEscrow public escrow;
+    PayCrowReputation public rep;
     MockUSDC public usdc;
 
     address public owner = address(this);
@@ -389,8 +389,8 @@ contract EscrowReputationIntegrationTest is Test {
 
     function setUp() public {
         usdc = new MockUSDC();
-        escrow = new Agora402Escrow(address(usdc), arbiter, treasury, DEFAULT_FEE_BPS);
-        rep = new Agora402Reputation();
+        escrow = new PayCrowEscrow(address(usdc), arbiter, treasury, DEFAULT_FEE_BPS);
+        rep = new PayCrowReputation();
 
         // Wire reputation to escrow (bidirectional)
         rep.setEscrowContract(address(escrow));
@@ -434,9 +434,9 @@ contract EscrowReputationIntegrationTest is Test {
 
         vm.prank(buyer);
         vm.expectEmit(true, true, false, true, address(rep));
-        emit Agora402Reputation.ReputationUpdated(buyer, Agora402Reputation.Outcome.Completed, TEN_USDC, escrowId, false);
+        emit PayCrowReputation.ReputationUpdated(buyer, PayCrowReputation.Outcome.Completed, TEN_USDC, escrowId, false);
         vm.expectEmit(true, true, false, true, address(rep));
-        emit Agora402Reputation.ReputationUpdated(seller, Agora402Reputation.Outcome.Completed, TEN_USDC, escrowId, true);
+        emit PayCrowReputation.ReputationUpdated(seller, PayCrowReputation.Outcome.Completed, TEN_USDC, escrowId, true);
         escrow.release(escrowId);
     }
 
@@ -539,8 +539,8 @@ contract EscrowReputationIntegrationTest is Test {
         vm.prank(buyer);
         escrow.release(escrowId);
 
-        (,,,,, Agora402Escrow.EscrowState state,) = escrow.getEscrow(escrowId);
-        assertEq(uint8(state), uint8(Agora402Escrow.EscrowState.Released));
+        (,,,,, PayCrowEscrow.EscrowState state,) = escrow.getEscrow(escrowId);
+        assertEq(uint8(state), uint8(PayCrowEscrow.EscrowState.Released));
     }
 
     // ─── setReputation admin function ───────────────────────────────────
@@ -548,13 +548,13 @@ contract EscrowReputationIntegrationTest is Test {
     function test_setReputation_emitsEvent() public {
         address newRep = makeAddr("newRep");
         vm.expectEmit(true, false, false, false);
-        emit Agora402Escrow.ReputationUpdated(newRep);
+        emit PayCrowEscrow.ReputationUpdated(newRep);
         escrow.setReputation(newRep);
     }
 
     function test_setReputation_revertsIfNotOwner() public {
         vm.prank(makeAddr("attacker"));
-        vm.expectRevert(Agora402Escrow.NotOwner.selector);
+        vm.expectRevert(PayCrowEscrow.NotOwner.selector);
         escrow.setReputation(makeAddr("malicious"));
     }
 

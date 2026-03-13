@@ -12,6 +12,8 @@
   "dependencies": {
     "@paycrow/core": "workspace:*",
     "@paycrow/db": "workspace:*",
+    "@paycrow/escrow-client": "workspace:*",
+    "@paycrow/verification": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "viem": "^2.46.3",
     "zod": "^3.25.76"

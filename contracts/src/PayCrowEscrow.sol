@@ -5,13 +5,13 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {Agora402Reputation} from "./Agora402Reputation.sol";
+import {PayCrowReputation} from "./PayCrowReputation.sol";
 
-/// @title Agora402Escrow
+/// @title PayCrowEscrow
 /// @notice USDC escrow for agent-to-agent commerce on top of x402.
 ///         State machine: CREATED → FUNDED → RELEASED | DISPUTED → RESOLVED | EXPIRED → REFUNDED
 /// @dev All amounts are in USDC (6 decimals). Max escrow cap enforced for v1 safety.
-contract Agora402Escrow is ReentrancyGuard, Pausable {
+contract PayCrowEscrow is ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     // ─── Types ───────────────────────────────────────────────────────────
@@ -57,7 +57,7 @@ contract Agora402Escrow is ReentrancyGuard, Pausable {
     mapping(address => bool) public authorizedRouters;
 
     /// @notice On-chain reputation ledger (optional, address(0) = disabled)
-    Agora402Reputation public reputation;
+    PayCrowReputation public reputation;
 
     /// @notice Maximum escrow amount in USDC base units (6 decimals). $100 = 100_000_000
     uint256 public constant MAX_ESCROW_AMOUNT = 100_000_000;
@@ -201,7 +201,7 @@ contract Agora402Escrow is ReentrancyGuard, Pausable {
     }
 
     /// @notice Create and fund an escrow on behalf of a buyer. Only callable by authorized routers.
-    ///         Used by Agora402EscrowRouter to atomically settle x402 payments into escrow.
+    ///         Used by PayCrowEscrowRouter to atomically settle x402 payments into escrow.
     ///         Router must have approved this contract to spend `amount` USDC.
     /// @param buyer Address of the actual buyer (the agent who signed the EIP-3009 auth)
     /// @param seller Address of the seller/service provider
@@ -265,7 +265,7 @@ contract Agora402Escrow is ReentrancyGuard, Pausable {
         }
         usdc.safeTransfer(e.seller, sellerAmount);
 
-        _recordReputation(e.buyer, e.seller, e.amount, escrowId, Agora402Reputation.Outcome.Completed);
+        _recordReputation(e.buyer, e.seller, e.amount, escrowId, PayCrowReputation.Outcome.Completed);
 
         emit EscrowReleased(escrowId, sellerAmount);
     }
@@ -313,7 +313,7 @@ contract Agora402Escrow is ReentrancyGuard, Pausable {
             usdc.safeTransfer(e.seller, sellerAmount);
         }
 
-        _recordReputation(e.buyer, e.seller, e.amount, escrowId, Agora402Reputation.Outcome.Disputed);
+        _recordReputation(e.buyer, e.seller, e.amount, escrowId, PayCrowReputation.Outcome.Disputed);
 
         emit EscrowResolved(escrowId, buyerAmount, sellerAmount);
     }
@@ -344,7 +344,7 @@ contract Agora402Escrow is ReentrancyGuard, Pausable {
 
         usdc.safeTransfer(e.buyer, e.amount);
 
-        _recordReputation(e.buyer, e.seller, e.amount, escrowId, Agora402Reputation.Outcome.Refunded);
+        _recordReputation(e.buyer, e.seller, e.amount, escrowId, PayCrowReputation.Outcome.Refunded);
 
         emit EscrowRefunded(escrowId, e.amount);
     }
@@ -414,7 +414,7 @@ contract Agora402Escrow is ReentrancyGuard, Pausable {
 
     /// @notice Set the on-chain reputation contract. Use address(0) to disable.
     function setReputation(address _reputation) external onlyOwner {
-        reputation = Agora402Reputation(_reputation);
+        reputation = PayCrowReputation(_reputation);
         emit ReputationUpdated(_reputation);
     }
 
@@ -440,7 +440,7 @@ contract Agora402Escrow is ReentrancyGuard, Pausable {
         address seller,
         uint256 amount,
         uint256 escrowId,
-        Agora402Reputation.Outcome outcome
+        PayCrowReputation.Outcome outcome
     ) internal {
         if (address(reputation) != address(0)) {
             reputation.recordOutcome(buyer, seller, amount, escrowId, outcome);

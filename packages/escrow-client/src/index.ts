@@ -15,7 +15,7 @@ import {
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
 import {
-  agora402EscrowAbi,
+  payCrowEscrowAbi,
   type EscrowData,
   type CreateEscrowParams,
   EscrowState,
@@ -101,7 +101,7 @@ export class EscrowClient {
 
     const txHash = await this.walletClient.writeContract({
       address: this.escrowAddress,
-      abi: agora402EscrowAbi,
+      abi: payCrowEscrowAbi,
       functionName: "createAndFund",
       args: [
         params.seller,
@@ -137,7 +137,7 @@ export class EscrowClient {
   async release(escrowId: bigint): Promise<Hash> {
     return this.walletClient.writeContract({
       address: this.escrowAddress,
-      abi: agora402EscrowAbi,
+      abi: payCrowEscrowAbi,
       functionName: "release",
       args: [escrowId],
     });
@@ -146,7 +146,7 @@ export class EscrowClient {
   async dispute(escrowId: bigint): Promise<Hash> {
     return this.walletClient.writeContract({
       address: this.escrowAddress,
-      abi: agora402EscrowAbi,
+      abi: payCrowEscrowAbi,
       functionName: "dispute",
       args: [escrowId],
     });
@@ -155,7 +155,7 @@ export class EscrowClient {
   async getEscrow(escrowId: bigint): Promise<EscrowData> {
     const result = await this.publicClient.readContract({
       address: this.escrowAddress,
-      abi: agora402EscrowAbi,
+      abi: payCrowEscrowAbi,
       functionName: "getEscrow",
       args: [escrowId],
     });
@@ -177,7 +177,7 @@ export class EscrowClient {
   async isExpired(escrowId: bigint): Promise<boolean> {
     return this.publicClient.readContract({
       address: this.escrowAddress,
-      abi: agora402EscrowAbi,
+      abi: payCrowEscrowAbi,
       functionName: "isExpired",
       args: [escrowId],
     }) as Promise<boolean>;

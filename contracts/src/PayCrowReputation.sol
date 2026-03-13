@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title Agora402Reputation
+/// @title PayCrowReputation
 /// @notice On-chain reputation ledger for the agent economy.
 ///         Every escrow outcome (release, dispute, refund) writes a permanent,
 ///         publicly queryable reputation record. No one can fake these scores.
 ///
-/// @dev Only the Agora402Escrow contract can write reputation (via setEscrowContract).
+/// @dev Only the PayCrowEscrow contract can write reputation (via setEscrowContract).
 ///      Scores are computed off-chain from on-chain events for flexibility.
 ///      This contract is the immutable data layer — the source of truth.
-contract Agora402Reputation {
+contract PayCrowReputation {
     // ─── Types ───────────────────────────────────────────────────────────
 
     struct Reputation {
@@ -81,7 +81,7 @@ contract Agora402Reputation {
     // ─── Core: Record Reputation ─────────────────────────────────────────
 
     /// @notice Record an escrow outcome for both buyer and seller.
-    ///         Only callable by the authorized Agora402Escrow contract.
+    ///         Only callable by the authorized PayCrowEscrow contract.
     /// @param buyer The escrow buyer (client)
     /// @param seller The escrow seller (provider)
     /// @param amount The escrow amount in USDC base units

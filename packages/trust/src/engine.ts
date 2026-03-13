@@ -4,12 +4,11 @@
  * Aggregates trust signals from multiple on-chain and off-chain sources
  * into a single 0-100 score with full provenance.
  *
- * Sources and weights:
- *   1. PayCrow Reputation (35%) — our own escrow outcome history
+ * Sources and weights (normalized to 100%):
+ *   1. PayCrow Reputation (40%) — our own escrow outcome history
  *   2. ERC-8004 Reputation  (25%) — cross-ecosystem agent identity + feedback
  *   3. Moltbook Social      (15%) — karma, account age, social standing
- *   4. Base Chain Activity   (15%) — wallet age, tx count, USDC volume
- *   5. (Reserved)            (10%) — future sources (ClawCredit, x402 settlements)
+ *   4. Base Chain Activity   (20%) — wallet age, tx count, USDC volume
  *
  * Scoring principles:
  *   - No data → score null, confidence "none", recommendation "insufficient_data"
@@ -104,14 +103,13 @@ export interface TrustEngineConfig {
 }
 
 const WEIGHTS = {
-  paycrow: 0.35,
+  paycrow: 0.40,
   erc8004: 0.25,
   moltbook: 0.15,
-  baseChain: 0.15,
-  // reserved: 0.10 — future sources
+  baseChain: 0.20,
 };
 
-/** Sum of active weights (excluding reserved) */
+/** Sum of all active weights (should be 1.0) */
 const ACTIVE_WEIGHT_SUM = WEIGHTS.paycrow + WEIGHTS.erc8004 + WEIGHTS.moltbook + WEIGHTS.baseChain;
 
 const DEFAULT_REPUTATION_ADDRESSES: Record<string, Address> = {

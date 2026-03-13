@@ -13,7 +13,7 @@ import {
 } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
-import { agora402RouterAbi } from "@paycrow/core";
+import { payCrowRouterAbi } from "@paycrow/core";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -222,7 +222,7 @@ export class PayCrowFacilitator {
     try {
       const txHash = await this.walletClient.writeContract({
         address: this.routerAddress,
-        abi: agora402RouterAbi,
+        abi: payCrowRouterAbi,
         functionName: "settleToEscrow",
         chain: this.chain,
         args: [

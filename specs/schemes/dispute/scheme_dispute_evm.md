@@ -4,9 +4,9 @@
 
 The `dispute` EVM implementation uses two contracts deployed on Base (eip155:8453):
 
-1. **Agora402Escrow** — holds USDC in escrow with a state machine: `Funded → Released | Disputed → Resolved | Expired → Refunded`. Supports direct buyer funding and router-mediated funding (for transparent x402 integration).
+1. **PayCrowEscrow** — holds USDC in escrow with a state machine: `Funded → Released | Disputed → Resolved | Expired → Refunded`. Supports direct buyer funding and router-mediated funding (for transparent x402 integration).
 
-2. **Agora402Reputation** — immutable on-chain ledger recording every escrow outcome per address. Emits `ReputationUpdated` events indexable by any trust scoring system.
+2. **PayCrowReputation** — immutable on-chain ledger recording every escrow outcome per address. Emits `ReputationUpdated` events indexable by any trust scoring system.
 
 The buyer agent signs a standard ERC-3009 `receiveWithAuthorization` to fund the escrow — the same signature primitive used by the `exact` scheme. An authorized **router contract** intercepts the x402 settlement, deposits USDC into escrow instead of directly paying the seller, and returns the escrow ID to the buyer.
 
@@ -21,7 +21,7 @@ The buyer agent signs a standard ERC-3009 `receiveWithAuthorization` to fund the
                     ┌────────────────────────┼────────────────────────┐
                     │                        │                        │
            ┌────────▼──────────┐   ┌────────▼──────────┐   ┌────────▼──────────┐
-           │ Agora402Escrow    │   │ Agora402Router     │   │  x402 Facilitator │
+           │ PayCrowEscrow    │   │ PayCrowRouter     │   │  x402 Facilitator │
            │ 0xDcA5...965aDe   │   │ (authorized)       │   │  (Coinbase CDP)   │
            │                   │◄──│                    │◄──│                   │
            │ • createAndFund() │   │ • settleToEscrow() │   │ • settle()        │
@@ -32,7 +32,7 @@ The buyer agent signs a standard ERC-3009 `receiveWithAuthorization` to fund the
            └────────┬──────────┘          │
                     │                     ▼
            ┌────────▼──────────┐   ┌─────────────────────┐
-           │ Protocol Treasury │   │ Agora402Reputation   │
+           │ Protocol Treasury │   │ PayCrowReputation   │
            │ (fee receiver)    │   │ 0x9Ea8...11BCC      │
            └───────────────────┘   │                     │
                                    │ • getReputation()   │
@@ -72,7 +72,7 @@ When a resource server supports the `dispute` scheme, the `402` response include
 
 | Field | Required | Type | Description |
 |---|---|---|---|
-| `escrowContract` | MUST | `address` | Address of the Agora402Escrow contract |
+| `escrowContract` | MUST | `address` | Address of the PayCrowEscrow contract |
 | `timelockDuration` | MUST | `uint256` | Seconds until the escrow expires (300–2592000) |
 | `serviceHash` | MUST | `bytes32` | `keccak256` of the service URL or task identifier |
 | `arbiter` | SHOULD | `address` | Current arbiter address for dispute resolution |
@@ -129,7 +129,7 @@ The facilitator (or buyer-side middleware) MUST perform the following checks bef
 1. **Validate `x402Version`** — MUST be `2`.
 2. **Validate `scheme`** — MUST be `"dispute"`.
 3. **Validate `network`** — MUST match `eip155:8453` (Base mainnet) or the target chain.
-4. **Validate `escrowContract`** — the address MUST be a known, trusted Agora402Escrow deployment. Clients SHOULD maintain an allowlist.
+4. **Validate `escrowContract`** — the address MUST be a known, trusted PayCrowEscrow deployment. Clients SHOULD maintain an allowlist.
 5. **Validate `amount`** — MUST be between `MIN_ESCROW_AMOUNT` (100,000 = $0.10) and `MAX_ESCROW_AMOUNT` (100,000,000 = $100).
 6. **Validate `timelockDuration`** — MUST be between `MIN_TIMELOCK` (300 seconds) and `MAX_TIMELOCK` (2,592,000 seconds = 30 days).
 7. **Validate `seller`** — MUST NOT be the zero address and MUST NOT equal the buyer address.
@@ -142,7 +142,7 @@ The facilitator (or buyer-side middleware) MUST perform the following checks bef
 Before funding, the buyer agent MAY query the seller's reputation:
 
 ```solidity
-// On-chain (Agora402Reputation)
+// On-chain (PayCrowReputation)
 (uint64 completed, uint64 disputed, uint64 refunded, , , , , ) =
     reputation.getReputation(sellerAddress);
 uint256 score = reputation.getScore(sellerAddress);
@@ -298,8 +298,8 @@ struct Reputation {
 
 | Contract | Address |
 |---|---|
-| Agora402Escrow | `0xDcA5E5Dd1E969A4b824adDE41569a5d80A965aDe` |
-| Agora402Reputation | `0x9Ea8c817bFDfb15FA50a30b08A186Cb213F11BCC` |
+| PayCrowEscrow | `0xDcA5E5Dd1E969A4b824adDE41569a5d80A965aDe` |
+| PayCrowReputation | `0x9Ea8c817bFDfb15FA50a30b08A186Cb213F11BCC` |
 | USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
 
 ### Events Reference
