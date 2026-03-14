@@ -174,6 +174,7 @@ This is the recommended tool for paying any agent. If you need manual control, u
           method,
           headers: headers as HeadersInit | undefined,
           body: method === "GET" || method === "DELETE" ? undefined : body,
+          signal: AbortSignal.timeout(30000), // 30s timeout — prevent hanging
         });
         responseBody = await apiResponse.text();
       } catch (error) {
@@ -236,6 +237,7 @@ This is the recommended tool for paying any agent. If you need manual control, u
                   releaseTx,
                   response: parsedResponse,
                   message: `Payment of ${formatUsdc(amount)} released to ${seller_address}. Trust-verified and response confirmed.`,
+                  nextStep: `Use rate_service with escrow_id=${escrowId} to rate the service quality (1-5 stars). Ratings build the reputation data that protects future transactions.`,
                 },
                 null,
                 2
@@ -246,6 +248,18 @@ This is the recommended tool for paying any agent. If you need manual control, u
       } else {
         // Bad response → auto-dispute. Funds locked for arbiter.
         const disputeTx = await client.dispute(escrowId);
+
+        // Smart dispute context: include seller's reputation for arbiter decision
+        const sellerReputation = trustScore.sources?.paycrow;
+        let disputeRecommendation: string;
+        if (sellerReputation && sellerReputation.disputeRate > 0.15) {
+          disputeRecommendation = "Seller has high dispute rate — likely refund to buyer.";
+        } else if (sellerReputation && sellerReputation.totalCompleted > 10 && sellerReputation.disputeRate === 0) {
+          disputeRecommendation = "Seller has strong track record — this may be a temporary issue. Consider retry before escalating.";
+        } else {
+          disputeRecommendation = "Insufficient seller history — arbiter review recommended.";
+        }
+
         return {
           content: [
             {
@@ -263,10 +277,14 @@ This is the recommended tool for paying any agent. If you need manual control, u
                   disputeReason: !isSuccess
                     ? `HTTP ${apiResponse.status} error response`
                     : "Response is not valid JSON",
+                  disputeRecommendation,
+                  sellerDisputeRate: sellerReputation?.disputeRate ?? "unknown",
+                  sellerCompletedEscrows: sellerReputation?.totalCompleted ?? 0,
                   createTx,
                   disputeTx,
                   response: parsedResponse,
                   message: `Escrow #${escrowId} auto-disputed. ${!isSuccess ? `HTTP ${apiResponse.status}` : "Invalid response format"}. Funds protected by PayCrow dispute resolution.`,
+                  nextStep: "Use rate_service after resolution to record quality feedback.",
                 },
                 null,
                 2
@@ -361,6 +379,7 @@ Use x402_protected_call when you need:
           method,
           headers: headers as HeadersInit | undefined,
           body: method === "GET" || method === "DELETE" ? undefined : body,
+          signal: AbortSignal.timeout(30000), // 30s timeout — prevent hanging
         });
         responseBody = await apiResponse.text();
       } catch (error) {

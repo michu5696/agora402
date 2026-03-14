@@ -7,19 +7,21 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "vitest run"
   },
   "dependencies": {
     "@paycrow/core": "workspace:*",
-    "@paycrow/db": "workspace:*",
     "@paycrow/escrow-client": "workspace:*",
     "@paycrow/verification": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.27.1",
+    "@x402/extensions": "^2.6.0",
     "viem": "^2.46.3",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^25.3.3",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^3.1.1"
   }
 }

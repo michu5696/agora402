@@ -22,15 +22,17 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
-import { type Address, type Hash, isAddress, keccak256, toBytes } from "viem";
+import { type Address, type Hash, isAddress } from "viem";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { z } from "zod";
-import { computeTrustScore, type TrustEngineConfig } from "./engine.js";
-import { formatUsdc, parseUsdc, ESCROW_ADDRESSES, type VerificationStrategy } from "@paycrow/core";
+import { computeTrustScore, type CompositeTrustScore, type TrustEngineConfig } from "./engine.js";
+import { ESCROW_ADDRESSES, USDC_ADDRESSES } from "@paycrow/core";
 import { EscrowClient } from "@paycrow/escrow-client";
-import { verify } from "@paycrow/verification";
+import { registerAllTools } from "./tools.js";
 import { base, baseSepolia } from "viem/chains";
+import { TtlCache } from "./utils/cache.js";
+import { RateLimiter } from "./utils/rate-limit.js";
+import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
 
 export interface TrustServerConfig extends TrustEngineConfig {
   /** Port to listen on (default: 4021) */
@@ -49,9 +51,7 @@ export function startTrustServer(config: TrustServerConfig) {
   const facilitatorUrl = config.facilitatorUrl ?? "https://facilitator.xpay.sh";
   const chainName = config.chain ?? "base";
   const network = chainName === "base" ? "eip155:8453" : "eip155:84532";
-  const usdcAddress = chainName === "base"
-    ? "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-    : "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+  const usdcAddress = USDC_ADDRESSES[chainName === "base" ? base.id : baseSepolia.id];
 
   // In-memory stats (resets on deploy — good enough for now)
   const startedAt = new Date().toISOString();
@@ -66,6 +66,24 @@ export function startTrustServer(config: TrustServerConfig) {
     lastPayment: null as string | null,
   };
 
+  // Trust score cache — avoids re-querying 4 sources for same address within TTL
+  const trustCache = new TtlCache<CompositeTrustScore>({
+    ttlMs: 60_000,   // 1 minute TTL
+    maxSize: 5000,
+  });
+
+  // Rate limiter — prevent DoS on /trust endpoint
+  const rateLimiter = new RateLimiter({
+    maxRequests: 100,  // 100 requests per minute per IP
+    windowMs: 60_000,
+  });
+
+  function getClientIp(req: IncomingMessage): string {
+    const forwarded = req.headers["x-forwarded-for"];
+    if (typeof forwarded === "string") return forwarded.split(",")[0].trim();
+    return req.socket.remoteAddress ?? "unknown";
+  }
+
   function json(res: ServerResponse, status: number, data: unknown, headers?: Record<string, string>): void {
     const h: Record<string, string> = {
       "Content-Type": "application/json",
@@ -76,6 +94,43 @@ export function startTrustServer(config: TrustServerConfig) {
     res.writeHead(status, h);
     res.end(JSON.stringify(data, null, 2));
   }
+
+  // Build Bazaar discovery extension via @x402/extensions SDK
+  const bazaarExtension = declareDiscoveryExtension({
+    input: {
+      address: "0x0000000000000000000000000000000000000001",
+    },
+    inputSchema: {
+      properties: {
+        address: {
+          type: "string",
+          pattern: "^0x[a-fA-F0-9]{40}$",
+          description: "Ethereum address to check trust score for",
+        },
+      },
+      required: ["address"],
+    },
+    output: {
+      example: {
+        score: 78,
+        confidence: "high",
+        confidencePercent: 83,
+        recommendation: "high_trust",
+        sourcesUsed: ["paycrow", "erc8004", "base-chain"],
+      },
+      schema: {
+        type: "object",
+        properties: {
+          score: { type: "number" },
+          confidence: { type: "string", enum: ["high", "medium", "low"] },
+          confidencePercent: { type: "number" },
+          recommendation: { type: "string" },
+          sourcesUsed: { type: "array", items: { type: "string" } },
+        },
+        required: ["score", "confidence", "recommendation"],
+      },
+    },
+  });
 
   function paymentRequirements(resource: string) {
     return {
@@ -96,62 +151,7 @@ export function startTrustServer(config: TrustServerConfig) {
           extra: { name: "USD Coin", version: "2" },
         },
       ],
-      extensions: {
-        bazaar: {
-          info: {
-            input: {
-              type: "http",
-              method: "GET",
-              pathParams: { address: "0x0000000000000000000000000000000000000001" },
-            },
-            output: {
-              type: "json",
-              example: {
-                score: 78,
-                confidence: "high",
-                confidencePercent: 83,
-                recommendation: "high_trust",
-                sourcesUsed: ["paycrow", "erc8004", "base-chain"],
-              },
-            },
-          },
-          schema: {
-            $schema: "https://json-schema.org/draft/2020-12/schema",
-            type: "object",
-            properties: {
-              input: {
-                type: "object",
-                properties: {
-                  type: { type: "string", const: "http" },
-                  method: { type: "string", enum: ["GET"] },
-                  pathParams: {
-                    type: "object",
-                    properties: {
-                      address: {
-                        type: "string",
-                        pattern: "^0x[a-fA-F0-9]{40}$",
-                        description: "Ethereum address to check trust score for",
-                      },
-                    },
-                    required: ["address"],
-                  },
-                },
-                required: ["type", "method"],
-                additionalProperties: false,
-              },
-              output: {
-                type: "object",
-                properties: {
-                  type: { type: "string" },
-                  example: { type: "object" },
-                },
-                required: ["type"],
-              },
-            },
-            required: ["input"],
-          },
-        },
-      },
+      extensions: bazaarExtension,
       facilitatorUrl,
     };
   }
@@ -264,403 +264,25 @@ export function startTrustServer(config: TrustServerConfig) {
   }
 
   function createMcpServer(): McpServer {
-    const mcp = new McpServer({ name: "paycrow", version: "1.0.0" });
+    const mcp = new McpServer({ name: "paycrow", version: "1.2.0" });
 
-    const trustConfig = {
-      chain: chainName as "base" | "base-sepolia",
-      rpcUrl: config.rpcUrl,
-      reputationAddress: config.reputationAddress,
-      basescanApiKey: config.basescanApiKey,
-      moltbookAppKey: config.moltbookAppKey,
-    };
-
-    // ── Trust gate — go/no-go decision ──
-
-    mcp.tool(
-      "trust_gate",
-      `Should you pay this agent? Check before sending money. Returns a go/no-go decision with recommended escrow protection parameters.
-
-Unlike other trust services, PayCrow ties trust directly to escrow protection:
-- High trust → shorter timelock, proceed with confidence
-- Low trust → longer timelock, smaller amounts recommended
-- Caution → don't proceed, or use maximum protection`,
-      {
-        address: z.string().describe("Ethereum address of the agent you're about to pay"),
-        intended_amount_usdc: z.number().min(0.01).max(100).optional().describe("How much you plan to pay"),
+    // Register all 10 tools from the shared registration module
+    registerAllTools(mcp, {
+      trustConfig: {
+        chain: chainName as "base" | "base-sepolia",
+        rpcUrl: config.rpcUrl,
+        reputationAddress: config.reputationAddress,
+        basescanApiKey: config.basescanApiKey,
+        moltbookAppKey: config.moltbookAppKey,
       },
-      async ({ address: addr, intended_amount_usdc }) => {
-        const trustScore = await computeTrustScore(addr as Address, trustConfig);
-
-        let decision: string;
-        let recommendedTimelockMinutes: number;
-        let maxRecommendedUsdc: number;
-        let reasoning: string;
-
-        if (trustScore.recommendation === "high_trust" && trustScore.confidence !== "low") {
-          decision = "proceed"; recommendedTimelockMinutes = 15; maxRecommendedUsdc = 100;
-          reasoning = "Strong trust signal from multiple sources. Standard escrow protection is sufficient.";
-        } else if (trustScore.recommendation === "moderate_trust" || (trustScore.recommendation === "high_trust" && trustScore.confidence === "low")) {
-          decision = "proceed_with_caution"; recommendedTimelockMinutes = 60; maxRecommendedUsdc = 25;
-          reasoning = "Moderate trust or limited data. Use longer timelock and smaller amounts.";
-        } else if (trustScore.recommendation === "low_trust") {
-          decision = "proceed_with_caution"; recommendedTimelockMinutes = 240; maxRecommendedUsdc = 5;
-          reasoning = "Low trust score. Use maximum escrow protection.";
-        } else {
-          decision = "do_not_proceed"; recommendedTimelockMinutes = 0; maxRecommendedUsdc = 0;
-          reasoning = trustScore.recommendation === "caution"
-            ? "High dispute rate detected. Do not send funds."
-            : "Insufficient data. No on-chain history found.";
-        }
-
-        let amountWarning: string | undefined;
-        if (intended_amount_usdc && intended_amount_usdc > maxRecommendedUsdc && decision !== "proceed") {
-          amountWarning = `Intended $${intended_amount_usdc} exceeds recommended max of $${maxRecommendedUsdc} for this trust level.`;
-        }
-
-        return { content: [{ type: "text" as const, text: JSON.stringify({
-          address: addr, decision, reasoning,
-          trustScore: trustScore.score, confidence: trustScore.confidence,
-          recommendation: trustScore.recommendation, sourcesUsed: trustScore.sourcesUsed,
-          escrowParams: { recommendedTimelockMinutes, maxRecommendedUsdc, ...(intended_amount_usdc ? { intendedAmount: intended_amount_usdc } : {}) },
-          ...(amountWarning ? { warning: amountWarning } : {}),
-          nextStep: decision === "do_not_proceed" ? "Do not proceed." : `Use safe_pay or escrow_create with timelock_minutes=${recommendedTimelockMinutes}.`,
-        }, null, 2) }] };
-      }
-    );
-
-    // ── Trust score query ──
-
-    mcp.tool(
-      "trust_score_query",
-      "Full trust score breakdown for an agent address. Aggregates 4 on-chain sources: PayCrow escrow history, ERC-8004 identity, Moltbook karma, and Base chain activity. For a quick go/no-go decision, use trust_gate instead.",
-      { address: z.string().describe("Ethereum address to check") },
-      async ({ address: addr }) => {
-        const score = await computeTrustScore(addr as Address, trustConfig);
-        return { content: [{ type: "text" as const, text: JSON.stringify(score, null, 2) }] };
-      }
-    );
-
-    // ── Escrow tools ──
-
-    mcp.tool(
-      "escrow_create",
-      "Create a USDC escrow with built-in dispute resolution. Funds are locked on-chain until delivery is confirmed (release) or a problem is flagged (dispute). The only escrow service with real dispute resolution on Base.",
-      {
-        seller: z.string().describe("Ethereum address of the seller/service provider"),
-        amount_usdc: z.number().min(0.1).max(100).describe("Amount in USDC (e.g., 5.00 for $5)"),
-        timelock_minutes: z.number().min(5).max(43200).default(30).describe("Minutes until escrow expires and auto-refunds (default: 30)"),
-        service_url: z.string().describe("URL or identifier of the service being purchased (used for tracking)"),
-      },
-      async ({ seller, amount_usdc, timelock_minutes, service_url }) => {
-        const client = getEscrowClient();
-        const amount = parseUsdc(amount_usdc);
-        const timelockDuration = BigInt(timelock_minutes * 60);
-        const serviceHash = keccak256(toBytes(service_url));
-
-        const { escrowId, txHash } = await client.createAndFund({
-          seller: seller as Address,
-          amount,
-          timelockDuration,
-          serviceHash,
-        });
-
-        return {
-          content: [{
-            type: "text" as const,
-            text: JSON.stringify({
-              success: true,
-              escrowId: escrowId.toString(),
-              amount: formatUsdc(amount),
-              seller,
-              serviceUrl: service_url,
-              expiresInMinutes: timelock_minutes,
-              txHash,
-              message: `Escrow #${escrowId} created. ${formatUsdc(amount)} locked. Call escrow_release when delivery is confirmed, or escrow_dispute if there's a problem.`,
-            }, null, 2),
-          }],
-        };
-      }
-    );
-
-    mcp.tool(
-      "escrow_release",
-      "Confirm delivery and release escrowed USDC to the seller. Only call this when you've verified the service/product was delivered correctly.",
-      { escrow_id: z.string().describe("The escrow ID to release") },
-      async ({ escrow_id }) => {
-        const client = getEscrowClient();
-        const txHash = await client.release(BigInt(escrow_id));
-        return {
-          content: [{
-            type: "text" as const,
-            text: JSON.stringify({
-              success: true, escrowId: escrow_id, action: "released", txHash,
-              message: `Escrow #${escrow_id} released. Funds sent to seller.`,
-            }),
-          }],
-        };
-      }
-    );
-
-    mcp.tool(
-      "escrow_dispute",
-      "Flag a problem with delivery — PayCrow's key differentiator. Locks escrowed funds and triggers arbiter review. Unlike other escrow services that say 'no disputes, no chargebacks', PayCrow has real on-chain dispute resolution.",
-      {
-        escrow_id: z.string().describe("The escrow ID to dispute"),
-        reason: z.string().describe("Brief description of the problem for the arbiter"),
-      },
-      async ({ escrow_id, reason }) => {
-        const client = getEscrowClient();
-        const txHash = await client.dispute(BigInt(escrow_id));
-        return {
-          content: [{
-            type: "text" as const,
-            text: JSON.stringify({
-              success: true, escrowId: escrow_id, action: "disputed", reason, txHash,
-              message: `Escrow #${escrow_id} disputed. Funds locked for arbiter review. Reason: ${reason}`,
-            }),
-          }],
-        };
-      }
-    );
-
-    mcp.tool(
-      "escrow_status",
-      "Check the current state of an escrow (funded, released, disputed, expired, etc.)",
-      { escrow_id: z.string().describe("The escrow ID to check") },
-      async ({ escrow_id }) => {
-        const client = getEscrowClient();
-        const escrowId = BigInt(escrow_id);
-        const data = await client.getEscrow(escrowId);
-        const expired = await client.isExpired(escrowId);
-        const stateNames = ["Created", "Funded", "Released", "Disputed", "Resolved", "Expired", "Refunded"];
-        return {
-          content: [{
-            type: "text" as const,
-            text: JSON.stringify({
-              escrowId: escrow_id,
-              state: stateNames[data.state] ?? "Unknown",
-              buyer: data.buyer,
-              seller: data.seller,
-              amount: formatUsdc(data.amount),
-              createdAt: new Date(Number(data.createdAt) * 1000).toISOString(),
-              expiresAt: new Date(Number(data.expiresAt) * 1000).toISOString(),
-              isExpired: expired,
-            }, null, 2),
-          }],
-        };
-      }
-    );
-
-    // ── safe_pay — Trust-informed smart escrow ──
-
-    mcp.tool(
-      "safe_pay",
-      `The smart way to pay an agent. Checks trust first, then auto-configures escrow protection based on risk.
-
-Flow: Check trust → Set protection → Create escrow → Call API → Verify → Auto-release or auto-dispute.
-
-Protection: High trust=15min, Moderate=60min, Low=4hr, Unknown=BLOCKED.
-This is the recommended tool for paying any agent.`,
-      {
-        url: z.string().url().describe("The API endpoint URL to call"),
-        seller_address: z.string().describe("Ethereum address of the agent you're paying"),
-        amount_usdc: z.number().min(0.1).max(100).describe("Amount to pay in USDC"),
-        method: z.enum(["GET", "POST", "PUT", "DELETE"]).default("GET").describe("HTTP method"),
-        headers: z.record(z.string()).optional().describe("HTTP headers"),
-        body: z.string().optional().describe("Request body (for POST/PUT)"),
-      },
-      async ({ url, seller_address, amount_usdc, method, headers, body: reqBody }) => {
-        // Step 1: Check trust
-        let trustScore;
-        try {
-          trustScore = await computeTrustScore(seller_address as Address, trustConfig);
-        } catch {
-          return { content: [{ type: "text" as const, text: JSON.stringify({
-            success: false, step: "trust_check",
-            error: "Could not verify seller trust. Refusing to send funds to unverified agent.",
-          }) }] };
-        }
-
-        // Step 2: Determine protection level
-        let timelockMinutes: number;
-        let maxAmount: number;
-
-        if (trustScore.recommendation === "high_trust" && trustScore.confidence !== "low") {
-          timelockMinutes = 15; maxAmount = 100;
-        } else if (trustScore.recommendation === "moderate_trust" || (trustScore.recommendation === "high_trust" && trustScore.confidence === "low")) {
-          timelockMinutes = 60; maxAmount = 25;
-        } else if (trustScore.recommendation === "low_trust") {
-          timelockMinutes = 240; maxAmount = 5;
-        } else {
-          return { content: [{ type: "text" as const, text: JSON.stringify({
-            success: false, step: "trust_check", blocked: true, seller: seller_address,
-            trustScore: trustScore.score, recommendation: trustScore.recommendation,
-            reason: trustScore.recommendation === "caution"
-              ? "Agent has high dispute rate. Payment blocked."
-              : "Agent has no verifiable history. Payment blocked.",
-          }, null, 2) }] };
-        }
-
-        if (amount_usdc > maxAmount) {
-          return { content: [{ type: "text" as const, text: JSON.stringify({
-            success: false, step: "amount_check", requestedAmount: amount_usdc, maxAllowed: maxAmount,
-            trustScore: trustScore.score, recommendation: trustScore.recommendation,
-            reason: `Trust level limits payments to $${maxAmount}. Use x402_protected_call to override.`,
-          }, null, 2) }] };
-        }
-
-        // Step 3: Create escrow + call API
-        const client = getEscrowClient();
-        const amount = parseUsdc(amount_usdc);
-        const timelockDuration = BigInt(timelockMinutes * 60);
-        const serviceHash = keccak256(toBytes(url));
-
-        const { escrowId, txHash: createTx } = await client.createAndFund({
-          seller: seller_address as Address, amount, timelockDuration, serviceHash,
-        });
-
-        let apiResponse: Response;
-        let responseBody: string;
-        try {
-          apiResponse = await fetch(url, {
-            method, headers: headers as HeadersInit | undefined,
-            body: method === "GET" || method === "DELETE" ? undefined : reqBody,
-          });
-          responseBody = await apiResponse.text();
-        } catch (error) {
-          const disputeTx = await client.dispute(escrowId);
-          return { content: [{ type: "text" as const, text: JSON.stringify({
-            success: false, escrowId: escrowId.toString(), step: "api_call",
-            error: `API call failed: ${error instanceof Error ? error.message : String(error)}`,
-            action: "auto_disputed", createTx, disputeTx,
-          }, null, 2) }] };
-        }
-
-        let parsedResponse: unknown;
-        try { parsedResponse = JSON.parse(responseBody); } catch { parsedResponse = responseBody; }
-
-        const isSuccess = apiResponse.status >= 200 && apiResponse.status < 300;
-        const isJsonResponse = parsedResponse !== responseBody;
-
-        if (isSuccess && isJsonResponse) {
-          const releaseTx = await client.release(escrowId);
-          return { content: [{ type: "text" as const, text: JSON.stringify({
-            success: true, escrowId: escrowId.toString(), amount: formatUsdc(amount),
-            seller: seller_address, url, httpStatus: apiResponse.status,
-            trustScore: trustScore.score, trustRecommendation: trustScore.recommendation,
-            timelockUsed: `${timelockMinutes}min`, action: "auto_released", createTx, releaseTx,
-            response: parsedResponse,
-          }, null, 2) }] };
-        } else {
-          const disputeTx = await client.dispute(escrowId);
-          return { content: [{ type: "text" as const, text: JSON.stringify({
-            success: false, escrowId: escrowId.toString(), amount: formatUsdc(amount),
-            seller: seller_address, url, httpStatus: apiResponse.status,
-            action: "auto_disputed", disputeReason: !isSuccess ? `HTTP ${apiResponse.status}` : "Not valid JSON",
-            createTx, disputeTx, response: parsedResponse,
-          }, null, 2) }] };
-        }
-      }
-    );
-
-    // ── x402 Protected Call (advanced, manual control) ──
-
-    mcp.tool(
-      "x402_protected_call",
-      `Make an HTTP API call with manual escrow protection. Full control over verification and timelock.
-
-For most payments, use safe_pay instead — it auto-configures protection based on seller trust.
-Use this when you need custom JSON Schema verification, hash-lock verification, or to override trust-based limits.`,
-      {
-        url: z.string().url().describe("The API endpoint URL to call"),
-        method: z.enum(["GET", "POST", "PUT", "DELETE"]).default("GET").describe("HTTP method"),
-        headers: z.record(z.string()).optional().describe("HTTP headers to include"),
-        body: z.string().optional().describe("Request body (for POST/PUT)"),
-        seller_address: z.string().describe("Ethereum address of the API provider (seller)"),
-        amount_usdc: z.number().min(0.1).max(100).describe("Amount to pay in USDC"),
-        timelock_minutes: z.number().min(5).max(43200).default(30).describe("Minutes until escrow expires"),
-        verification_strategy: z.enum(["schema", "hash-lock"]).default("schema").describe("How to verify the response: 'schema' (JSON Schema) or 'hash-lock' (exact hash match)"),
-        verification_data: z.string().describe("Verification data: JSON Schema string (for schema strategy) or expected hash (for hash-lock)"),
-      },
-      async ({ url, method, headers, body: reqBody, seller_address, amount_usdc, timelock_minutes, verification_strategy, verification_data }) => {
-        const client = getEscrowClient();
-        const amount = parseUsdc(amount_usdc);
-        const timelockDuration = BigInt(timelock_minutes * 60);
-        const serviceHash = keccak256(toBytes(url));
-
-        // Step 1: Create escrow
-        const { escrowId, txHash: createTx } = await client.createAndFund({
-          seller: seller_address as Address,
-          amount,
-          timelockDuration,
-          serviceHash,
-        });
-
-        // Step 2: Make the API call
-        let apiResponse: Response;
-        let responseBody: string;
-        try {
-          apiResponse = await fetch(url, {
-            method,
-            headers: headers as HeadersInit | undefined,
-            body: method === "GET" || method === "DELETE" ? undefined : reqBody,
-          });
-          responseBody = await apiResponse.text();
-        } catch (error) {
-          const disputeTx = await client.dispute(escrowId);
-          return {
-            content: [{
-              type: "text" as const,
-              text: JSON.stringify({
-                success: false, escrowId: escrowId.toString(), step: "api_call",
-                error: `API call failed: ${error instanceof Error ? error.message : String(error)}`,
-                action: "auto_disputed", createTx, disputeTx,
-                message: `Escrow #${escrowId} auto-disputed. API call to ${url} failed.`,
-              }, null, 2),
-            }],
-          };
-        }
-
-        // Step 3: Verify response
-        let parsedResponse: unknown;
-        try { parsedResponse = JSON.parse(responseBody); } catch { parsedResponse = responseBody; }
-        let expectedData: unknown;
-        try { expectedData = JSON.parse(verification_data); } catch { expectedData = verification_data; }
-
-        const result = verify(verification_strategy as VerificationStrategy, parsedResponse, expectedData);
-
-        // Step 4: Auto-release or auto-dispute
-        if (result.valid) {
-          const releaseTx = await client.release(escrowId);
-          return {
-            content: [{
-              type: "text" as const,
-              text: JSON.stringify({
-                success: true, escrowId: escrowId.toString(), amount: formatUsdc(amount),
-                seller: seller_address, url, httpStatus: apiResponse.status,
-                verification: { strategy: verification_strategy, valid: true, details: result.details },
-                action: "auto_released", createTx, releaseTx, response: parsedResponse,
-                message: `Payment of ${formatUsdc(amount)} released to ${seller_address}. Response verified successfully.`,
-              }, null, 2),
-            }],
-          };
-        } else {
-          const disputeTx = await client.dispute(escrowId);
-          return {
-            content: [{
-              type: "text" as const,
-              text: JSON.stringify({
-                success: false, escrowId: escrowId.toString(), amount: formatUsdc(amount),
-                seller: seller_address, url, httpStatus: apiResponse.status,
-                verification: { strategy: verification_strategy, valid: false, details: result.details },
-                action: "auto_disputed", createTx, disputeTx, response: parsedResponse,
-                message: `Escrow #${escrowId} auto-disputed. Response failed verification: ${result.details}`,
-              }, null, 2),
-            }],
-          };
-        }
-      }
-    );
+      getEscrowClient,
+      chain: chainName === "base" ? base : baseSepolia,
+      rpcUrl: config.rpcUrl ?? (chainName === "base" ? "https://mainnet.base.org" : "https://sepolia.base.org"),
+      reputationAddress: config.reputationAddress ?? (chainName === "base"
+        ? "0x9Ea8c817bFDfb15FA50a30b08A186Cb213F11BCC" as Address
+        : "0x2A216a829574e88dD632e7C95660d43bCE627CDf" as Address),
+      chainName,
+    });
 
     return mcp;
   }
@@ -746,7 +368,7 @@ Use this when you need custom JSON Schema verification, hash-lock verification, 
       if (req.method === "GET" && url.pathname === "/health") {
         json(res, 200, {
           name: "paycrow",
-          version: "1.0.0",
+          version: "1.2.0",
           description: "Escrow protection for autonomous agent payments. USDC held in smart contract on Base until the job is done. Includes trust scoring from 4 on-chain sources.",
           chain: chainName,
           price: `$${Number(price) / 1e6} USDC`,
@@ -776,7 +398,7 @@ Use this when you need custom JSON Schema verification, hash-lock verification, 
         json(res, 200, {
           name: "PayCrow",
           description: "Escrow protection for autonomous agent payments on Base. USDC held in smart contract until the job is done — no scams, no rugs. Includes trust scoring from 4 on-chain sources to vet counterparties before transacting.",
-          version: "1.0.0",
+          version: "1.2.0",
           url: `${url.origin}/`,
           protocolVersion: "0.3.0",
           provider: {
@@ -861,7 +483,7 @@ Use this when you need custom JSON Schema verification, hash-lock verification, 
         json(res, 200, {
           name: "paycrow",
           description: "Escrow protection for autonomous agent payments on Base. USDC held in smart contract until the job is done. Includes trust scoring from 4 on-chain sources.",
-          version: "1.0.0",
+          version: "1.2.0",
           capabilities: {
             tools: true,
             prompts: false,
@@ -921,7 +543,9 @@ Use this when you need custom JSON Schema verification, hash-lock verification, 
             `${url.origin}/trust/0x0000000000000000000000000000000000000001`,
           ],
           ownershipProofs: [config.payTo],
-          instructions: "Escrow-protected agent payments on Base. Check counterparty trust scores before transacting. GET /trust/{address} to query. Price: $0.001 USDC via x402.",
+          instructions: "PayCrow — the trust and escrow protection layer for x402 agent payments. Vet counterparties before transacting. GET /trust/{address} for trust scores ($0.001 USDC). Full MCP server at /mcp with 9 tools: safe_pay, trust_gate, escrow_create, escrow_release, escrow_dispute, escrow_status, trust_score_query, trust_onchain_quick, x402_protected_call. npm install -g paycrow.",
+          discovery: `${url.origin}/discovery/resources`,
+          mcp: `${url.origin}/mcp`,
         });
         return;
       }
@@ -929,59 +553,150 @@ Use this when you need custom JSON Schema verification, hash-lock verification, 
       // ── llms.txt (AI crawler discovery) ──
       if (req.method === "GET" && url.pathname === "/llms.txt") {
         res.writeHead(200, { "Content-Type": "text/plain", "Access-Control-Allow-Origin": "*" });
-        res.end(`# PayCrow — Escrow Protection for Agent Payments
-# PayPal for autonomous agents
+        res.end(`# PayCrow — The Trust Layer for Agent Commerce
+# PayPal for autonomous agents. Escrow + Trust + Dispute Resolution on Base.
 
-> Escrow protection for autonomous agent payments on Base.
-> USDC held in smart contract until the job is done — no scams, no rugs.
-> Check counterparty trust scores before transacting (4 on-chain sources).
-> Price: $${Number(price) / 1e6} USDC per query via x402 protocol.
+> The only escrow service with real on-chain dispute resolution on Base/EVM.
+> x402 handles payments. Bazaar handles discovery. PayCrow handles trust.
 
-## Endpoints
-- GET /trust/{address} — Query trust score (requires x402 payment)
-- GET /discovery/resources — x402 Bazaar catalog
-- GET /.well-known/x402 — x402 manifest
-- GET /health — Health check
+## What PayCrow Does
+1. **Trust Scoring** — Vet agents before paying. 4 on-chain sources (PayCrow escrow history, ERC-8004 identity, Moltbook karma, Base chain activity). Score 0-100 with confidence.
+2. **Smart Escrow** — USDC locked in smart contract until delivery confirmed. Auto-release on success, auto-dispute on failure.
+3. **Dispute Resolution** — The only escrow on Base with real arbiter review. Competitors say "no disputes, no chargebacks." We solve that.
 
-## Payment
-Network: Base (eip155:8453)
-Asset: USDC (${usdcAddress})
-Amount: ${price} base units ($${Number(price) / 1e6})
-Facilitator: ${facilitatorUrl}
-
-## MCP Server
+## How to Use
+\`\`\`
+# Install MCP server
 npm install -g paycrow
 npx paycrow
+
+# Or connect via HTTP
+POST ${url.origin}/mcp
+\`\`\`
+
+## 9 MCP Tools
+- **safe_pay** — Smart payment: trust check → escrow → API call → auto-resolve. The recommended way to pay any agent.
+- **trust_gate** — Go/no-go decision with recommended escrow params. Call BEFORE paying.
+- **trust_score_query** — Full 4-source trust breakdown.
+- **trust_onchain_quick** — Free on-chain-only reputation check.
+- **escrow_create** — Create USDC escrow with dispute resolution.
+- **escrow_release** — Confirm delivery, release funds to seller.
+- **escrow_dispute** — Flag bad delivery, lock funds for arbiter.
+- **escrow_status** — Check escrow state.
+- **x402_protected_call** — Advanced escrow with custom verification (JSON Schema / hash-lock).
+
+## API Endpoints
+- GET /trust/{address} — Trust score query ($${Number(price) / 1e6} USDC via x402)
+- GET /trust/{address} (no payment) — Free preview (score + recommendation, no source breakdown)
+- POST /mcp — MCP-over-HTTP (Streamable HTTP)
+- GET /discovery/resources — x402 Bazaar catalog
+- GET /.well-known/agent.json — A2A agent card
+- GET /.well-known/x402 — x402 manifest
+- GET /health — Health check
+- GET /stats — Usage stats
+
+## Payment
+Network: Base (${network})
+Asset: USDC (${usdcAddress})
+Amount: $${Number(price) / 1e6} per trust query
+Facilitator: ${facilitatorUrl}
+
+## Smart Contracts (Base Mainnet)
+Escrow: ${ESCROW_ADDRESSES[8453] ?? "deployed"}
+USDC: ${usdcAddress}
 `);
         return;
       }
 
       // ── x402 Bazaar discovery ──
+      // Full PayCrow service catalog for agent discovery.
+      // Uses @x402/extensions SDK for proper DiscoveredHTTPResource format.
       if (req.method === "GET" && url.pathname === "/discovery/resources") {
+        // Extract discoveryInfo from the SDK-generated extension
+        const bazaarExt = bazaarExtension.bazaar as { info: unknown; schema: unknown };
         json(res, 200, {
+          provider: {
+            name: "PayCrow",
+            description: "Escrow protection for autonomous agent payments. PayPal for AI agents. The trust and dispute resolution layer for x402.",
+            url: url.origin,
+            category: "trust-and-escrow",
+          },
           resources: [
             {
-              resource: `/trust/{address}`,
+              resourceUrl: `${url.origin}/trust/{address}`,
               method: "GET",
-              description: "Check if an agent is safe to transact with before sending funds to escrow. Returns 0-100 trust score from 4 on-chain sources: escrow history, ERC-8004 identity, Moltbook karma, and Base chain activity. Part of PayCrow's escrow protection layer.",
+              description: "Vet an agent before sending funds. Returns 0-100 trust score from 4 on-chain sources (PayCrow escrow history, ERC-8004 identity, Moltbook karma, Base chain activity) with confidence level and go/no-go recommendation. Free preview included, full breakdown requires $0.001 USDC payment.",
+              mimeType: "application/json",
+              x402Version: 2,
+              discoveryInfo: bazaarExt.info,
               scheme: "exact",
               network,
               maxAmountRequired: price,
               asset: usdcAddress,
-              mimeType: "application/json",
-              tags: ["escrow", "payment-protection", "trust", "reputation", "agent", "erc-8004", "moltbook"],
+              payTo: config.payTo,
+              tags: ["trust", "reputation", "payment-protection", "escrow", "agent-vetting", "erc-8004", "moltbook", "risk-assessment"],
               rateLimit: { requests: 100, period: "minute" },
-              example: {
-                request: "GET /trust/0x1234...abcd",
-                response: {
-                  score: 78,
-                  confidence: "high",
-                  recommendation: "high_trust",
-                  sourcesUsed: ["paycrow", "erc8004", "base-chain"],
-                },
-              },
             },
           ],
+          mcpServer: {
+            description: "Full escrow + trust MCP server with 9 tools. Install via npm or connect over HTTP.",
+            transport: "streamable-http",
+            endpoint: `${url.origin}/mcp`,
+            npmPackage: "paycrow",
+            tools: [
+              {
+                name: "trust_gate",
+                description: "Go/no-go decision before paying an agent. Returns recommended escrow parameters (timelock, max amount) based on trust level.",
+                tags: ["trust", "pre-payment", "risk-assessment"],
+              },
+              {
+                name: "safe_pay",
+                description: "Trust-informed smart escrow. Auto-checks trust → creates escrow → calls API → auto-releases on success or auto-disputes on failure. The recommended way to pay any agent.",
+                tags: ["payment", "escrow", "trust", "auto-protection"],
+              },
+              {
+                name: "trust_score_query",
+                description: "Full 4-source trust score breakdown with per-source details and confidence metrics.",
+                tags: ["trust", "reputation", "analytics"],
+              },
+              {
+                name: "escrow_create",
+                description: "Create a USDC escrow with built-in dispute resolution on Base. Funds locked until delivery confirmed or disputed.",
+                tags: ["escrow", "payment", "dispute-resolution"],
+              },
+              {
+                name: "escrow_release",
+                description: "Confirm delivery and release escrowed funds to seller.",
+                tags: ["escrow", "payment"],
+              },
+              {
+                name: "escrow_dispute",
+                description: "Flag a problem — the only escrow with real on-chain dispute resolution on Base. Locks funds for arbiter review.",
+                tags: ["escrow", "dispute", "buyer-protection"],
+              },
+              {
+                name: "escrow_status",
+                description: "Check current state of an escrow (funded, released, disputed, expired).",
+                tags: ["escrow", "status"],
+              },
+              {
+                name: "x402_protected_call",
+                description: "Advanced escrow with manual verification (JSON Schema or hash-lock). Full control over protection parameters.",
+                tags: ["escrow", "verification", "advanced"],
+              },
+              {
+                name: "trust_onchain_quick",
+                description: "Quick on-chain reputation check using PayCrow contract only. Free, no API keys needed.",
+                tags: ["trust", "free", "on-chain"],
+              },
+            ],
+          },
+          contracts: {
+            chain: chainName,
+            network,
+            escrow: ESCROW_ADDRESSES[chainName === "base" ? 8453 : 84532],
+            usdc: usdcAddress,
+          },
         });
         return;
       }
@@ -998,19 +713,37 @@ npx paycrow
           return;
         }
 
+        // Rate limit check
+        const clientIp = getClientIp(req);
+        const rateCheck = rateLimiter.check(clientIp);
+        if (!rateCheck.allowed) {
+          json(res, 429, {
+            error: "Too many requests",
+            retryAfterSeconds: Math.ceil(rateCheck.retryAfterMs / 1000),
+          }, {
+            "Retry-After": String(Math.ceil(rateCheck.retryAfterMs / 1000)),
+          });
+          return;
+        }
+
         // Check for x402 payment header
         const paymentSig = (req.headers["payment-signature"] ?? req.headers["x-payment"]) as string | undefined;
 
         if (!paymentSig) {
           // Free preview: compute score but only return summary (no source breakdown)
-          // This lets agents evaluate the service before paying
-          const preview = await computeTrustScore(queryAddress, {
-            chain: chainName,
-            rpcUrl: config.rpcUrl,
-            reputationAddress: config.reputationAddress,
-            moltbookAppKey: config.moltbookAppKey,
-            basescanApiKey: config.basescanApiKey,
-          });
+          // Use cache to avoid repeated queries
+          const cacheKey = queryAddress.toLowerCase();
+          let preview = trustCache.get(cacheKey);
+          if (!preview) {
+            preview = await computeTrustScore(queryAddress, {
+              chain: chainName,
+              rpcUrl: config.rpcUrl,
+              reputationAddress: config.reputationAddress,
+              moltbookAppKey: config.moltbookAppKey,
+              basescanApiKey: config.basescanApiKey,
+            });
+            trustCache.set(cacheKey, preview);
+          }
 
           const resource = `${url.origin}/trust/${queryAddress}`;
           const requirements = paymentRequirements(resource);
@@ -1053,14 +786,19 @@ npx paycrow
         stats.lastPayment = new Date().toISOString();
         if (payment.payer) stats.uniquePayers.add(payment.payer.toLowerCase());
 
-        // Compute and return trust score
-        const trustScore = await computeTrustScore(queryAddress, {
-          chain: chainName,
-          rpcUrl: config.rpcUrl,
-          reputationAddress: config.reputationAddress,
-          moltbookAppKey: config.moltbookAppKey,
-          basescanApiKey: config.basescanApiKey,
-        });
+        // Compute and return trust score (use cache)
+        const cacheKey = queryAddress.toLowerCase();
+        let trustScore = trustCache.get(cacheKey);
+        if (!trustScore) {
+          trustScore = await computeTrustScore(queryAddress, {
+            chain: chainName,
+            rpcUrl: config.rpcUrl,
+            reputationAddress: config.reputationAddress,
+            moltbookAppKey: config.moltbookAppKey,
+            basescanApiKey: config.basescanApiKey,
+          });
+          trustCache.set(cacheKey, trustScore);
+        }
 
         json(res, 200, {
           ...trustScore,

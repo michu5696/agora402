@@ -8,6 +8,9 @@
  */
 
 import type { Address } from "viem";
+import { USDC_ADDRESSES } from "@paycrow/core";
+import { base } from "viem/chains";
+import { fetchWithRetry } from "../utils/retry.js";
 
 export interface BaseChainSignal {
   walletAgeDays: number;
@@ -21,7 +24,7 @@ export interface BaseChainSignal {
 
 const ETHERSCAN_V2_BASE = "https://api.etherscan.io/v2/api";
 const BASE_CHAIN_ID = 8453;
-const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const USDC_BASE = USDC_ADDRESSES[base.id];
 
 async function etherscanQuery(
   params: Record<string, string>,
@@ -34,7 +37,7 @@ async function etherscanQuery(
     url.searchParams.set(k, v);
   }
 
-  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(10000) });
+  const res = await fetchWithRetry(url.toString(), {}, { maxAttempts: 2, timeoutMs: 10000, baseDelayMs: 500 });
   if (!res.ok) return null;
 
   const data = (await res.json()) as { status: string; result: unknown };

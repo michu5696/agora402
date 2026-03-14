@@ -13,6 +13,8 @@
  *   2. Return not-found if no match — never fake data
  */
 
+import { fetchWithRetry } from "../utils/retry.js";
+
 export interface MoltbookSignal {
   found: boolean;
   karma: number;
@@ -73,10 +75,13 @@ export async function queryMoltbook(
       headers["X-Moltbook-App-Key"] = appKey;
     }
 
+    const fetchOpts = { maxAttempts: 2, timeoutMs: 5000, baseDelayMs: 300 };
+
     // Strategy 1: Search for agents linked to this wallet address
-    const searchRes = await fetch(
+    const searchRes = await fetchWithRetry(
       `${MOLTBOOK_BASE_URL}/agents/search?q=${encodeURIComponent(addressOrName)}&limit=1`,
-      { headers, signal: AbortSignal.timeout(5000) }
+      { headers },
+      fetchOpts
     );
 
     if (searchRes.ok) {
@@ -87,9 +92,10 @@ export async function queryMoltbook(
     }
 
     // Strategy 2: Direct name lookup (some agents register as their address)
-    const profileRes = await fetch(
+    const profileRes = await fetchWithRetry(
       `${MOLTBOOK_BASE_URL}/agents/profile?name=${encodeURIComponent(addressOrName)}`,
-      { headers, signal: AbortSignal.timeout(5000) }
+      { headers },
+      fetchOpts
     );
 
     if (profileRes.ok) {

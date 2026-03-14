@@ -59,20 +59,7 @@ export interface TrustScore {
   lastUpdated: Date;
 }
 
-export interface SlaDefinition {
-  serviceUrl: string;
-  responseSchema?: Record<string, unknown>;
-  maxLatencyMs?: number;
-  expectedHash?: Hash;
-}
-
 // ── On-chain reputation types ─────────────────────────────────────
-
-export enum ReputationOutcome {
-  Completed = 0,
-  Disputed = 1,
-  Refunded = 2,
-}
 
 export interface OnChainReputation {
   totalCompleted: number;
@@ -85,45 +72,3 @@ export interface OnChainReputation {
   lastSeen: bigint;
 }
 
-export interface ReputationScore {
-  address: Address;
-  score: number;
-  reputation: OnChainReputation;
-  source: "on-chain";
-}
-
-// ── Protocol fee types ──────────────────────────────────────────────
-
-/** Constructor / deployment parameters for the PayCrowEscrow contract. */
-export interface DeployParams {
-  usdc: Address;
-  arbiter: Address;
-  treasury: Address;
-  feeBps: bigint;
-}
-
-/** On-chain fee configuration snapshot. */
-export interface FeeConfig {
-  treasury: Address;
-  feeBps: bigint;
-  totalFeesCollected: bigint;
-}
-
-/** Emitted when a protocol fee is collected on release or resolve. */
-export interface FeeCollectedEvent {
-  escrowId: bigint;
-  amount: bigint;
-  treasury: Address;
-}
-
-/** Emitted when the fee basis points are changed. */
-export interface FeeUpdatedEvent {
-  oldFeeBps: bigint;
-  newFeeBps: bigint;
-}
-
-/** Emitted when the treasury address is changed. */
-export interface TreasuryUpdatedEvent {
-  oldTreasury: Address;
-  newTreasury: Address;
-}

@@ -57,6 +57,11 @@ export interface PayCrowSignal {
   totalRefunded: number;
   totalVolume: string;
   disputeRate: number;
+  /** Dispute rate specifically as a client/buyer (high = might be a false disputer) */
+  buyerDisputeRate: number;
+  /** Number of transactions as provider vs client */
+  totalAsProvider: number;
+  totalAsClient: number;
   firstSeen: string | null;
   lastSeen: string | null;
 }
@@ -196,8 +201,9 @@ export async function computeTrustScore(
   let recommendation: CompositeTrustScore["recommendation"];
   if (confidence === "none" || score === null) {
     recommendation = "insufficient_data";
-  } else if (paycrow && paycrow.disputeRate > 0.2) {
+  } else if (paycrow && paycrow.disputeRate > 0.15) {
     // High dispute rate is an explicit red flag regardless of score
+    // Threshold at 15% — catch bad actors early
     recommendation = "caution";
   } else if (confidence === "low") {
     // Low confidence caps recommendation at moderate_trust
@@ -246,7 +252,7 @@ async function queryPayCrow(
       }),
     ]);
 
-    const [completed, disputed, refunded, , , totalVolume, firstSeen, lastSeen] = repData;
+    const [completed, disputed, refunded, asProvider, asClient, totalVolume, firstSeen, lastSeen] = repData;
 
     const totalCompleted = Number(completed);
     const totalDisputed = Number(disputed);
@@ -265,12 +271,31 @@ async function queryPayCrow(
       : 0;
 
     // Start from on-chain score, then apply dispute penalty
+    // More aggressive penalty: disputes are strong negative signals
+    // 10% dispute rate → -10 points, 20% → -25 points, 50% → -50 points, 100% → -70 points
     let score = Number(rawScore);
     if (disputeRate > 0) {
-      // Dispute penalty: 0-50 point penalty based on dispute rate
-      // 10% dispute rate → -5 points, 50% → -25 points, 100% → -50 points
-      score = Math.max(0, score - Math.round(disputeRate * 50));
+      const penalty = Math.round(disputeRate * disputeRate * 70 + disputeRate * 30);
+      score = Math.max(0, score - Math.min(penalty, 70));
     }
+
+    // Refund penalty (weaker — refunds may be legitimate timeouts)
+    const refundRate = totalInteractions > 0
+      ? totalRefunded / totalInteractions
+      : 0;
+    if (refundRate > 0.3) {
+      score = Math.max(0, score - Math.round((refundRate - 0.3) * 20));
+    }
+
+    const totalAsProvider = Number(asProvider);
+    const totalAsClient = Number(asClient);
+
+    // Compute buyer-specific dispute rate (disputes initiated as buyer)
+    // This tells us: does this address tend to dispute a lot when buying?
+    // High buyer dispute rate → potential false disputer
+    const buyerDisputeRate = totalAsClient > 0
+      ? Math.round((totalDisputed / Math.max(totalAsClient, 1)) * 100) / 100
+      : 0;
 
     return {
       score,
@@ -279,6 +304,9 @@ async function queryPayCrow(
       totalRefunded,
       totalVolume: `$${(Number(totalVolume) / 1e6).toFixed(2)}`,
       disputeRate: Math.round(disputeRate * 100) / 100,
+      buyerDisputeRate,
+      totalAsProvider,
+      totalAsClient,
       firstSeen: firstSeen > 0n ? new Date(Number(firstSeen) * 1000).toISOString() : null,
       lastSeen: lastSeen > 0n ? new Date(Number(lastSeen) * 1000).toISOString() : null,
     };

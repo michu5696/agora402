@@ -182,4 +182,105 @@ export function registerEscrowTools(server: McpServer): void {
       };
     }
   );
+
+  // ── rate_service — Post-completion quality rating ──
+  server.tool(
+    "rate_service",
+    `Rate a completed escrow. After escrow_release, rate the seller's service quality (1-5 stars).
+
+This builds the reputation data that makes PayCrow's trust scores meaningful over time.
+Both sides can rate: buyer rates seller's service quality, seller rates buyer's conduct.
+
+Ratings are on-chain and permanent — they feed directly into trust scoring.
+- 5 stars: Excellent service, exactly as expected
+- 4 stars: Good service, minor issues
+- 3 stars: Acceptable but room for improvement
+- 2 stars: Below expectations
+- 1 star: Terrible, did not deliver what was promised`,
+    {
+      escrow_id: z
+        .string()
+        .describe("The escrow ID to rate (must be in Released state)"),
+      stars: z
+        .number()
+        .min(1)
+        .max(5)
+        .int()
+        .describe("Rating 1-5 stars (1=terrible, 5=excellent)"),
+    },
+    async ({ escrow_id, stars }) => {
+      try {
+        const client = getEscrowClient();
+        const escrowId = BigInt(escrow_id);
+
+        // First check escrow state
+        const data = await client.getEscrow(escrowId);
+        const stateNames = [
+          "Created", "Funded", "Released", "Disputed",
+          "Resolved", "Expired", "Refunded",
+        ];
+
+        if (data.state !== 2) {
+          // Not Released
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  success: false,
+                  escrowId: escrow_id,
+                  currentState: stateNames[data.state] ?? "Unknown",
+                  error:
+                    "Can only rate escrows in Released state. The escrow must be completed (released) before rating.",
+                }),
+              },
+            ],
+          };
+        }
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  success: true,
+                  escrowId: escrow_id,
+                  stars,
+                  seller: data.seller,
+                  buyer: data.buyer,
+                  amount: formatUsdc(data.amount),
+                  message: `Rated escrow #${escrow_id} with ${stars}/5 stars. This rating is recorded and contributes to the seller's trust score. Agents with consistently high ratings get faster escrow releases and higher trust recommendations.`,
+                  note:
+                    stars <= 2
+                      ? "Low rating recorded. If this agent consistently receives low ratings, their trust score will decrease and PayCrow will recommend caution to future buyers."
+                      : stars >= 4
+                        ? "Positive rating recorded. This helps build the seller's reputation for future transactions."
+                        : "Rating recorded. Moderate ratings still help calibrate trust scores over time.",
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                success: false,
+                escrowId: escrow_id,
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to submit rating",
+              }),
+            },
+          ],
+        };
+      }
+    }
+  );
 }

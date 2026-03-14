@@ -105,22 +105,36 @@ const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
 const { StdioServerTransport } = await import(
   "@modelcontextprotocol/sdk/server/stdio.js"
 );
-const { registerEscrowTools } = await import("./tools/escrow.js");
-const { registerTrustTools } = await import("./tools/trust.js");
-const { registerX402Tools } = await import("./tools/x402.js");
+const { registerAllTools } = await import("@paycrow/trust");
+const {
+  getEscrowClient,
+  getChain,
+  getRpcUrl,
+  getChainName,
+  getReputationAddress,
+} = await import("./config.js");
 
 const server = new McpServer({
   name: "paycrow",
-  version: "1.0.0",
+  version: "1.2.0",
 });
 
-// Trust tools always work (read-only, no wallet needed)
-registerTrustTools(server);
+const chain = getChain();
 
-// Escrow + payment tools need PRIVATE_KEY — register them but they'll
-// return helpful errors if no wallet is configured
-registerEscrowTools(server);
-registerX402Tools(server);
+registerAllTools(server, {
+  trustConfig: {
+    chain: getChainName() as "base" | "base-sepolia",
+    rpcUrl: getRpcUrl(),
+    reputationAddress: getReputationAddress(),
+    basescanApiKey: process.env.BASESCAN_API_KEY,
+    moltbookAppKey: process.env.MOLTBOOK_APP_KEY,
+  },
+  getEscrowClient,
+  chain,
+  rpcUrl: getRpcUrl(),
+  reputationAddress: getReputationAddress(),
+  chainName: getChainName(),
+});
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

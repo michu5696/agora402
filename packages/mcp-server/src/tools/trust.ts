@@ -173,6 +173,17 @@ This is the tool to call BEFORE escrow_create or safe_pay.`,
                       : {}),
                   },
                   ...(amountWarning ? { warning: amountWarning } : {}),
+                  // Bilateral reputation context
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  ...(trustScore.sources?.paycrow ? (() => { const p = trustScore.sources.paycrow as any; return {
+                    sellerProfile: {
+                      completedEscrows: p.totalCompleted,
+                      disputeRate: p.disputeRate,
+                      buyerDisputeRate: p.buyerDisputeRate ?? null,
+                      asProvider: p.totalAsProvider ?? 0,
+                      asClient: p.totalAsClient ?? 0,
+                    },
+                  }; })() : {}),
                   nextStep:
                     decision === "do_not_proceed"
                       ? "Do not proceed with this transaction."
