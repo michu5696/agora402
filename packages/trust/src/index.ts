@@ -3,6 +3,7 @@ export { computeTrustScore, type CompositeTrustScore, type TrustEngineConfig, ty
 export { queryErc8004, type Erc8004Signal } from "./sources/erc8004.js";
 export { queryMoltbook, type MoltbookSignal } from "./sources/moltbook.js";
 export { queryBaseChain, type BaseChainSignal } from "./sources/base-chain.js";
+export { queryRevettr, type RevettrSignal, type RevettrTier, type RevettrQueryInput } from "./sources/revettr.js";
 export { startTrustServer, type TrustServerConfig } from "./server.js";
 export { registerAllTools, type ToolConfig } from "./tools.js";
 export { fetchWithRetry, type RetryOptions } from "./utils/retry.js";
